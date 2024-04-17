@@ -54,8 +54,5 @@ package-lock.json
 tmp/
 
 # Composer
-vendor/
-bin/composer/**/vendor/
-lib/vendor/
 contributors.md
 contributors.html
