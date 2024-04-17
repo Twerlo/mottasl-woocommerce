@@ -2,7 +2,7 @@
 
 
 
-require_once plugin_dir_path( __FILE__ ) . '../vendor/autoload_packages.php';
+require_once plugin_dir_path(dirname(__FILE__)) . 'includes/admin/setup.php';
 use Hub\Admin\Setup;
 
 
