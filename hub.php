@@ -6,7 +6,7 @@
  * Author URI: https://twerlo.com
  * Text Domain: hub
  * Domain Path: /languages
- *
+ * Description: Integrate your Woocommerce Store to send WhatsApp order status updates and abandoned cart recovery campaigns to your Customers.
  * License: GNU General Public License v3.0
  * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  *
