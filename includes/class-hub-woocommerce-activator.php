@@ -74,7 +74,7 @@ class Hub_Woocommerce_Activator
 			'timeout'     => 15,
 		);
 
-		$request_url = 'https://b71b-197-43-72-199.ngrok-free.app/api/v1/integration/events/woocommerce/app.event';
+		$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/app.event';
 		$response = wp_remote_post($request_url, $args);
 
 		// Check for errors
@@ -127,7 +127,7 @@ class Hub_Woocommerce_Activator
 		// Set the webhook endpoint URL
 		
 		foreach ($webhooks_topics_to_register as $webhook_topic) {
-			$webhook_url = 'https://b71b-197-43-72-199.ngrok-free.app/api/v1/integration/events/woocommerce/'.$webhook_topic .'?store_url=' . get_bloginfo('url');
+			$webhook_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/'.$webhook_topic .'?store_url=' . get_bloginfo('url');
 			// Create the webhook data
 			$webhook_data = array(
 				'name' => 'Hub Event: ' . $webhook_topic,
