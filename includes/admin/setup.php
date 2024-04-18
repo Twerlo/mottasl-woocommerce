@@ -13,31 +13,27 @@ class Setup {
 	 */
 	public function __construct() {
 		
-		if(! get_option( 'consumer_key') || ! get_option( 'consumer_secret') || get_option( 'business_id') == ''){
-			?>
-  <div class="error notice is-dismissable">
-	
-      <p><?php _e( 'Please enter a valid woocommerce credentials, go to woocommerce --> settings -->general --> Mottasl api v3.0', 'my_plugin_textdomain' ); ?></p>
-  </div>
-  <div class="error notice is-dismissable">
-	
-	<p><?php _e( 'to generate woocommerce credentials go to woocommerce --> settings -->advanced --> rest api --> create an Api key', 'my_plugin_textdomain' ); ?></p>
-</div>
-
-  <?php
-}
-
-
+		add_action( 'admin_notices', array( $this,'wpb_admin_notice_warn') );
 		add_action( 'admin_enqueue_scripts', array( $this, 'register_scripts' ) );
 		add_action( 'admin_menu', array( $this, 'register_page' ) );
 		add_filter( 'woocommerce_get_sections_general', array($this,'settings_section' ));
 		add_filter( 'woocommerce_get_settings_general',  array($this,'hub_settings'), 10, 2 );
 	}
-	
+	function wpb_admin_notice_warn() {
+		if(! get_option( 'consumer_key') || ! get_option( 'consumer_secret') || get_option( 'business_id') == ''){
+		echo '<div class="error notice-warning is-dismissible">
+			  <p>Please enter a valid woocommerce credentials, go to woocommerce --> settings -->general --> Mottasl api v3.0</p>
+			  </div>'; 
+			  echo '<div class="error notice-warning is-dismissible">
+			  <p>to generate woocommerce credentials go to woocommerce --> settings -->advanced --> rest api --> create an Api key<p>
+			  </div>'; 
+		}
+	}
 	function settings_section( $sections ) {
 		$sections['woocommerce_api_section'] = __( 'Mottasl api v3.0', 'text-domain' );
 		return $sections;
 	}
+	
 
 	function hub_settings( $settings, $current_section ) {
 		if ( 'woocommerce_api_section' == $current_section ) {
