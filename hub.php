@@ -126,7 +126,7 @@ function at_rest_init()
     	$encoded_consumer_secret=base64_encode(get_option( 'consumer_secret' ));
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
 		Hub_Woocommerce_Deactivator::deactivate();
-		wp_redirect( 'https://bb98-196-153-118-193.ngrok-free.app/ecommerce-apps?install=woocomerce&consumer_key='.$encoded_consumer_key . '&consumer_secret='. $encoded_consumer_secret, );
+		wp_redirect( 'https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key='.$encoded_consumer_key . '&consumer_secret='. $encoded_consumer_secret, );
 		
 	}
 	if($option_name === 'business_id' ){
