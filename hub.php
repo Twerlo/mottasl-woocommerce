@@ -63,6 +63,7 @@ function run_hub_woocommerce()
 	 * The core plugin class that is used to define internationalization,
 	 * admin-specific hooks, and public-facing site hooks.
 	 */
+	    add_action('rest_api_init', 'at_rest_init');
 		add_action( 'updated_option', 'your_plugin_option_updated', 10, 3 );
 
 	/**
@@ -82,13 +83,78 @@ function run_hub_woocommerce()
 	$plugin = new Hub_Woocommerce();
 	$plugin->run();
 }
- function your_plugin_option_updated( $option_name, $old_value, $new_value ) {
-	if (  $option_name === 'business_id' || $option_name === 'consumer_key' || $option_name === 'consumer_secret') {
-		
-		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
-		Hub_Woocommerce_Deactivator::deactivate();
+function at_rest_installation_endpoint($req)
+{
+	$response['installation-status'] = $req['installation-status'];
+	update_option( 'installation_status', $req['installation-status'] );
+	$res = new WP_REST_Response($response);
+	if($req['installation-status'] !== 'installed'){
+		$res->set_status(403);
+		$response['installation-note'] = 'installation failed';
+
+	}
+	else{
+		$res->set_status(200);
+		$response['installation-note'] = 'installation successfully completed';
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
 		Hub_Woocommerce_Activator::activate();
+
 	}
+	your_plugin_option_updated();
+
+	return ['req' => $res];
+}
+
+/**
+ * at_rest_init
+ */
+function at_rest_init()
+{
+    // route url: domain.com/wp-json/hub-api/v1/installation-status
+    $namespace = 'hub-api/v1';
+    $route     = 'installation-status';
+
+    register_rest_route($namespace, $route, array(
+        'methods'   =>'POST',
+        'callback'  => 'at_rest_installation_endpoint'
+    ));
+}
+
+ function your_plugin_option_updated( $option_name, $old_value, $new_value ) {
+	if (   $option_name === 'consumer_key' || $option_name === 'consumer_secret') {
+		$encoded_consumer_key=base64_encode(get_option( 'consumer_key' ));
+    	$encoded_consumer_secret=base64_encode(get_option( 'consumer_secret' ));
+		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
+		Hub_Woocommerce_Deactivator::deactivate();
+		wp_redirect( 'https://bb98-196-153-118-193.ngrok-free.app/ecommerce-apps?install=woocomerce&consumer_key='.$encoded_consumer_key . '&consumer_secret='. $encoded_consumer_secret, );
+		
+	}
+	if($option_name === 'business_id' ){
+		$business_id =get_option( 'business_id' );
+		$store_id = update_option('store_id', $random_string);
+		$store_data = array(
+			'store_url' => get_bloginfo('url'),
+		);
+
+		// Set up the request arguments
+		$args = array(
+			'body'        => json_encode($store_data),
+			'headers'     => array(
+				'Content-Type' => 'application/json',
+				'X-BUSINESS-Id'=> $business_id
+
+			),
+			'timeout'     => 15,
+		);
+		$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/update-business-id';
+		$response = wp_remote_post($request_url, $args);
+
+		// Check for errors
+		$response_code = wp_remote_retrieve_response_code($response);
+		if (is_wp_error($response) ) {
+			echo 'Error: ' . $response->get_error_message();
+
+		} 
+		}
 }
 run_hub_woocommerce();

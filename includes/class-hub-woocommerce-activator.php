@@ -28,83 +28,21 @@ class Hub_Woocommerce_Activator
 {
 
 
-		if( get_option( 'consumer_key') == '' ||  get_option( 'consumer_secret') == '' || get_option( 'business_id') == '')
+		if( get_option( 'consumer_key') == '' ||  get_option( 'consumer_secret') == '' )
 		{
 			update_option( 'activation_note','not valid' );
 			
 
 		}
 		else{
-
-			Hub_Woocommerce_Activator::install_merchant();
+			Hub_Woocommerce_Activator::register_webhooks();
 		}
 	
 		
 	}
 	
 	// if not there request new merchant install from hubs
-	private static function install_merchant()
-	{
-		$settings = get_option('woo_commerce_hub_settings');
-		$business_id =get_option( 'business_id' );
-		$random_string = wp_generate_password(12, true);
-		$store_id = update_option('store_id', $random_string);
-        $consumer_key = get_option( 'consumer_key' );
-        $consumer_secret = get_option( 'consumer_secret' );
 
-		$store_data = array(
-			'event_name' => 'installed',
-			'consumer_key' => $consumer_key,
-			'consumer_secret' => $consumer_secret,
-			'store_name' => get_bloginfo('name'),
-			'store_phone' => get_option('admin_phone',''),
-			'store_email' => get_option('admin_email'),
-			'store_url' => get_bloginfo('url'),
-			'platform_id' =>get_option('store_id', ''),
-		);
-
-		// Set up the request arguments
-		$args = array(
-			'body'        => json_encode($store_data),
-			'headers'     => array(
-				'Content-Type' => 'application/json',
-				'X-BUSINESS-Id'=> $business_id
-
-			),
-			'timeout'     => 15,
-		);
-
-		$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/app.event';
-		$response = wp_remote_post($request_url, $args);
-
-		// Check for errors
-		$response_code = wp_remote_retrieve_response_code($response);
-		if (is_wp_error($response) ) {
-			echo 'Error: ' . $response->get_error_message();
-
-		} 
-		if ($response_code !== 200) {
-			update_option( 'consumer_key','' );
-			update_option( 'consumer_secret','');
-			update_option( 'business_id','' );
-
-
-		} 
-		
-		else {
-			// Success, save integration_id
-			$body = wp_remote_retrieve_body($response);
-			$responseArray = json_decode($body, true);
-			Hub_Woocommerce_Activator::register_webhooks();
-			error_log($body);
-			?>
-			<div class="error notice is-dismissable">
-			  <p><?php _e( $body, 'my_plugin_textdomain' ); ?></p>
-		  </div>
-		  <?php
-
-		}
-	}
 
 	private static function register_webhooks()
 	{
@@ -118,9 +56,8 @@ class Hub_Woocommerce_Activator
 		];
 
 		// not required though, it is just for webhook secret
-		$consumer_key = 'YOUR_CONSUMER_KEY';
-		$consumer_secret = 'YOUR_CONSUMER_SECRET';
-
+		$consumer_key = get_option( 'consumer_key');
+		$consumer_secret = get_option( 'consumer_secret');;
 		// Set the webhook status to 'active'
 		$webhook_status = 'active';
 
