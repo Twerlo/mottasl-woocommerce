@@ -19,6 +19,7 @@ class Setup {
 		add_filter( 'woocommerce_get_sections_general', array($this,'settings_section' ));
 		add_filter( 'woocommerce_get_settings_general',  array($this,'hub_settings'), 10, 2 );
 	}
+
 	function wpb_admin_notice_warn() {
 		if(! get_option( 'consumer_key') || ! get_option( 'consumer_secret') || get_option( 'business_id') == ''){
 		echo '<div class="error notice-warning is-dismissible">
