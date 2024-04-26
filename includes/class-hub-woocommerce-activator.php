@@ -1,5 +1,5 @@
 <?php
-
+use Firebase\JWT\JWT;
 /**
  * Fired during plugin activation
  *
@@ -23,24 +23,33 @@
 
 class Hub_Woocommerce_Activator
 {
-	
-	public static function activate()
+	function generate_jwt_token($user_id, $secret_key)
 {
+	$payload = [
+		'sub' => $user_id,
+	];
+
+	return JWT::encode($payload, 'woocommerce-install', 'HS256');
+}
+
+	public static function activate()
+	{
 
 
-		if( get_option( 'consumer_key') == '' ||  get_option( 'consumer_secret') == '' )
-		{
-			update_option( 'activation_note','not valid' );
-			
+		if (get_option('consumer_key') == '' || get_option('consumer_secret') == '') {
+			update_option('activation_note', 'not valid');
 
-		}
-		else{
+
+		} else {
 			Hub_Woocommerce_Activator::register_webhooks();
-		}
-	
-		
+			$encoded_consumer_key = generate_jwt_token(get_option('consumer_key'), 'woocommerce-install');
+			$encoded_consumer_secret = generate_jwt_token(get_option('consumer_secret'), 'woocommerce-install');
+			wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key=' . $encoded_consumer_key . '&consumer_secret=' . $encoded_consumer_secret . '&store_url=' . get_bloginfo('url'));
 	}
-	
+
+
+	}
+
 	// if not there request new merchant install from hubs
 
 
@@ -52,19 +61,20 @@ class Hub_Woocommerce_Activator
 			'product.updated',
 			'customer.created',
 			'customer.updated',
-		
+
 		];
 
 		// not required though, it is just for webhook secret
-		$consumer_key = get_option( 'consumer_key');
-		$consumer_secret = get_option( 'consumer_secret');;
+		$consumer_key = get_option('consumer_key');
+		$consumer_secret = get_option('consumer_secret');
+		;
 		// Set the webhook status to 'active'
 		$webhook_status = 'active';
 
 		// Set the webhook endpoint URL
-		
+
 		foreach ($webhooks_topics_to_register as $webhook_topic) {
-			$webhook_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/'.$webhook_topic .'?store_url=' . get_bloginfo('url');
+			$webhook_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/' . $webhook_topic . '?store_url=' . get_bloginfo('url');
 			// Create the webhook data
 			$webhook_data = array(
 				'name' => 'Hub Event: ' . $webhook_topic,

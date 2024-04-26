@@ -14,5 +14,10 @@
 		"allow-plugins": {
 			"automattic/jetpack-autoloader": true
 		}
+	},
+	"require": {
+		"firebase/php-jwt": "^6.10",
+		"slim/slim": "^4.13",
+		"paragonie/sodium_compat": "^2.0"
 	}
 }
