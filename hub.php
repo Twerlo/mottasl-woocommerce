@@ -1,11 +1,10 @@
 <?php
 declare(strict_types=1);
 /**
- * Plugin Name: Hub
+ * Plugin Name: Mottasl
  * Version: 0.1.0
  * Author: Twerlo
  * Author URI: https://twerlo.com
- * Text Domain: hub
  * Domain Path: /languages
  * Description: Integrate your Woocommerce Store to send WhatsApp order status updates and abandoned cart recovery campaigns to your Customers.
  * License: GNU General Public License v3.0
