@@ -21,12 +21,17 @@ class Setup {
 	}
 
 	function wpb_admin_notice_warn() {
-		if(! get_option( 'consumer_key') || ! get_option( 'consumer_secret') || get_option( 'business_id') == ''){
+		if(! get_option( 'consumer_key') || ! get_option( 'consumer_secret') ){
 		echo '<div class="error notice-warning is-dismissible">
 			  <p>Please enter a valid woocommerce credentials, go to woocommerce --> settings -->general --> Mottasl api v3.0</p>
 			  </div>'; 
 			  echo '<div class="error notice-warning is-dismissible">
 			  <p>to generate woocommerce credentials go to woocommerce --> settings -->advanced --> rest api --> create an Api key<p>
+			  </div>'; 
+		}
+		if(get_option( 'business_id') == ''){
+			echo '<div class="error notice-warning is-dismissible">
+			  <p> If there is any issues with mottasll business ID please contact mottasl customer care </p>
 			  </div>'; 
 		}
 	}
