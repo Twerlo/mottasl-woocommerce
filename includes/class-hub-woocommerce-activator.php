@@ -34,6 +34,10 @@ class Hub_Woocommerce_Activator
 
 	public static function activate()
 	{
+		if ( ! class_exists( 'WooCommerce' ) ) {
+			deactivate_plugins( plugin_basename( __FILE__ ) );
+			wp_die( 'This plugin requires WooCommerce to function properly. Please install WooCommerce first.' );
+		}
 
 
 		if (get_option('consumer_key') == '' || get_option('consumer_secret') == '') {
@@ -42,10 +46,7 @@ class Hub_Woocommerce_Activator
 
 		} else {
 			Hub_Woocommerce_Activator::register_webhooks();
-			$encoded_consumer_key = generate_jwt_token(get_option('consumer_key'), 'woocommerce-install');
-			$encoded_consumer_secret = generate_jwt_token(get_option('consumer_secret'), 'woocommerce-install');
-			wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key=' . $encoded_consumer_key . '&consumer_secret=' . $encoded_consumer_secret . '&store_url=' . get_bloginfo('url'));
-	}
+				}
 
 
 	}

@@ -7,7 +7,7 @@ declare(strict_types=1);
  * Author URI: https://twerlo.com
  * Domain Path: /languages
  * Description: Integrate your Woocommerce Store to send WhatsApp order status updates and abandoned cart recovery campaigns to your Customers.
- * License: GNU General Public License v3.0
+ *  * License: GNU General Public License v3.0
  * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  *
  * @package extension
@@ -17,8 +17,9 @@ if (!defined('WPINC')) {
 	die;
 }
 
-require_once plugin_dir_path(__FILE__) . 'includes/admin/setup.php';
 use Hub\Admin\Setup;
+
+require_once plugin_dir_path(__FILE__) . 'includes/admin/setup.php';
 
 
 
@@ -31,25 +32,29 @@ define('HUB_WOOCOMMERCE_VERSION', '0.1.0');
  * This action is documented in includes/class-hub-woocommerce-activator.php
  */
 require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
-function generate_jwt_token($user_id, $secret_key)
+function generate_jwt_token($user_credits, $secret_key)
 {
-	$payload = [
-		'sub' => $user_id,
-	];
+	$payload =$user_credits;
 
 	return JWT::encode($payload, 'woocommerce-install', 'HS256');
 }
 function activate_hub_woocommerce()
 {
+	if (!class_exists('WooCommerce')) {
+		deactivate_plugins(plugin_basename(__FILE__));
+		wp_die('This plugin requires WooCommerce to function properly. Please install WooCommerce first.');
+	}
 	// Retrieved from filtered POST data
-
-
-
 	require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
 	Hub_Woocommerce_Activator::activate();
+	$encoded_user_credits = generate_jwt_token(['consumer_key'=>get_option('consumer_key'),'consumer_secret'=>get_option('consumer_secret'),'store_url'=>get_bloginfo('url')], 'woocommerce-install');
+	update_option('encoded_user_credits', $encoded_user_credits);
+	update_option('installation_status', 'pending');
+
 }
 /**
  * The code that runs during plugin deactivation.
@@ -99,23 +104,22 @@ function run_hub_woocommerce()
 	$plugin = new Hub_Woocommerce();
 	$plugin->run();
 }
+
 function at_rest_installation_endpoint($req)
 {
-	$consumer_key = $req['consumer_key'];
-	$consumer_secret = $req['consumer_secret'];
+	$user_credits = $req['code'];
 	$key = 'woocommerce-install';
 	$algo = 'HS256';
-	if (!$consumer_key || !$consumer_secret) {
+	if (!$user_credits) {
 		return ['response' => 'consumer_key and consumer secret are required'];
 	}
 
-	$decoded_consumer_secret = JWT::decode($consumer_secret, new Key($key, $algo));
-	$decoded_consumer_key = JWT::decode($consumer_key, new Key($key, $algo));
+	$decoded_user_credit = JWT::decode($consumer_key, new Key($key, $algo));
 
 
 	$response = array();
 	$res = new WP_REST_Response($response);
-	if ($decoded_consumer_secret->sub !== get_option('consumer_key') && $decoded_consumer_secret->sub !== get_option('consumer_secret')) {
+	if ($decoded_user_credit->store_url !== get_bloginfo('url') && $decoded_user_credit->consumer_key !== get_option('consumer_key') && $decoded_user_credit->consumer_secret !== get_option('consumer_secret')) {
 
 		$res->set_status(403);
 		$response['installation-note'] = 'installation failed';
@@ -131,7 +135,7 @@ function at_rest_installation_endpoint($req)
 			'platform_id' => get_option('store_id', ''),
 		);
 		$res->set_status(200);
-		$response=$store_data;
+		$response = $store_data;
 		$res->set_data($store_data);
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
 		Hub_Woocommerce_Activator::activate();
@@ -165,12 +169,9 @@ function your_plugin_option_updated($option_name, $old_value, $new_value)
 
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
 		Hub_Woocommerce_Deactivator::deactivate();
-		$encoded_consumer_key = generate_jwt_token(get_option('consumer_key'), 'woocommerce-install');
-		$encoded_consumer_secret = generate_jwt_token(get_option('consumer_secret'), 'woocommerce-install');
-
-		update_option('encoded_consumer_key', $encoded_consumer_key);
-		wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key=' . $encoded_consumer_key . '&consumer_secret=' . $encoded_consumer_secret . '&store_url=' . get_bloginfo('url'));
-
+		$encoded_user_credits = generate_jwt_token(['consumer_key'=>get_option('consumer_key'),'consumer_secret'=>get_option('consumer_secret'),'store_url'=>get_bloginfo('url')], 'woocommerce-install');
+	update_option('encoded_user_credits', $encoded_user_credits);
+		wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&code=' . $encoded_user_credits);
 	}
 	if ($option_name === 'business_id') {
 		$business_id = get_option('business_id');
