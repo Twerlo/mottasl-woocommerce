@@ -38,7 +38,7 @@ use Firebase\JWT\Key;
 
 function generate_jwt_token($user_credits, $secret_key)
 {
-	$payload =$user_credits;
+	$payload = $user_credits;
 
 	return JWT::encode($payload, 'woocommerce-install', 'HS256');
 }
@@ -51,10 +51,9 @@ function activate_hub_woocommerce()
 	// Retrieved from filtered POST data
 	require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
 	Hub_Woocommerce_Activator::activate();
-	$encoded_user_credits = generate_jwt_token(['consumer_key'=>get_option('consumer_key'),'consumer_secret'=>get_option('consumer_secret'),'store_url'=>get_bloginfo('url')], 'woocommerce-install');
+	$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
 	update_option('encoded_user_credits', $encoded_user_credits);
 	update_option('installation_status', 'pending');
-
 }
 /**
  * The code that runs during plugin deactivation.
@@ -113,10 +112,7 @@ function at_rest_installation_endpoint($req)
 	if (!$user_credits) {
 		return ['response' => 'consumer_key and consumer secret are required'];
 	}
-
-	$decoded_user_credit = JWT::decode($consumer_key, new Key($key, $algo));
-
-
+	$decoded_user_credit = JWT::decode($user_credits, new Key($key, $algo));
 	$response = array();
 	$res = new WP_REST_Response($response);
 	if ($decoded_user_credit->store_url !== get_bloginfo('url') && $decoded_user_credit->consumer_key !== get_option('consumer_key') && $decoded_user_credit->consumer_secret !== get_option('consumer_secret')) {
@@ -169,36 +165,9 @@ function your_plugin_option_updated($option_name, $old_value, $new_value)
 
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
 		Hub_Woocommerce_Deactivator::deactivate();
-		$encoded_user_credits = generate_jwt_token(['consumer_key'=>get_option('consumer_key'),'consumer_secret'=>get_option('consumer_secret'),'store_url'=>get_bloginfo('url')], 'woocommerce-install');
-	update_option('encoded_user_credits', $encoded_user_credits);
+		$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
+		update_option('encoded_user_credits', $encoded_user_credits);
 		wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&code=' . $encoded_user_credits);
-	}
-	if ($option_name === 'business_id') {
-		$business_id = get_option('business_id');
-		$store_id = update_option('store_id', $random_string);
-		$store_data = array(
-			'store_url' => get_bloginfo('url'),
-		);
-
-		// Set up the request arguments
-		$args = array(
-			'body' => json_encode($store_data),
-			'headers' => array(
-				'Content-Type' => 'application/json',
-				'X-BUSINESS-Id' => $business_id
-
-			),
-			'timeout' => 15,
-		);
-		$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/update-business-id';
-		$response = wp_remote_post($request_url, $args);
-
-		// Check for errors
-		$response_code = wp_remote_retrieve_response_code($response);
-		if (is_wp_error($response)) {
-			echo 'Error: ' . $response->get_error_message();
-
-		}
 	}
 }
 run_hub_woocommerce();

@@ -3,7 +3,7 @@
         'name' => 'extension/hub',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '59301105e867d9ab5045b16f54daf098cafbbc47',
+        'reference' => '89b15c7270ffc3449d31a153bb282aff9c0479fc',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'extension/hub' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '59301105e867d9ab5045b16f54daf098cafbbc47',
+            'reference' => '89b15c7270ffc3449d31a153bb282aff9c0479fc',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

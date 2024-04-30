@@ -18,105 +18,133 @@ class Setup
 		add_action('admin_notices', array($this, 'wpb_admin_notice_warn'));
 		add_action('admin_enqueue_scripts', array($this, 'register_scripts'));
 		add_action('admin_menu', array($this, 'register_page'));
-		add_filter( 'woocommerce_get_sections_general', array($this,'settings_section' ));
-		add_filter( 'woocommerce_get_settings_general',  array($this,'hub_settings'), 10, 2 );
-		add_action( 'woocommerce_admin_field_button' , array($this,'freeship_add_admin_field_button') );
-		// add the filter
-		add_filter( "plugin_action_links", array($this,"modify_plugin_action_links_defaults"), 10, 4 );
-		
+		add_filter('woocommerce_get_sections_general', array($this, 'settings_section'));
+		add_filter('woocommerce_get_settings_general', array($this, 'hub_settings'), 10, 2);
+		add_action('woocommerce_admin_field_button', array($this, 'freeship_add_admin_field_button'));
+		add_filter("plugin_action_links", array($this, "modify_plugin_action_links_defaults"), 10, 4);
+		add_action('admin_notices', array($this, 'my_plugin_admin_notices'));
+		add_action("after_plugin_row", array($this, 'woocommerce_deactivation'), 10, 2);
+
+
 	}
-	function modify_plugin_action_links_defaults($actions, $plugin_file, $plugin_data, $context) { 
-	
-		if($plugin_data['Name'] == 'Mottasl') {
-$settings_url=admin_url('admin.php?page=wc-settings&tab=general&section=woocommerce_api_section');
-			$actions[] = '<a href="'.$settings_url.'">Settings</a>';
-		}
-		// Update the $actions variable according to your website requirements and return this variable. You can modify the $actions variable conditionally too if you want.
-	
-		return $actions; 
-	}
-
-	function freeship_add_admin_field_button( $value ){     
-                ?>      
-                    <td class="forminp forminp-<?php echo sanitize_title( $value['type'] ) ?>">
-                
-                         <input
-                                name ="<?php echo esc_attr( $value['name'] ); ?>"
-                                id   ="<?php echo esc_attr( $value['id'] ); ?>"
-                                type ="submit"
-                                style="display:block;<?php echo esc_attr( $value['css'] ); ?>"
-                                value="<?php echo esc_attr( $value['name'] ); ?>"
-                                class="<?php echo esc_attr( $value['class'] ); ?>"
-							onclick=<?php   	
-									
-		$store_data = array(
-			'store_url' => get_bloginfo('url'),
-			'consumer_key'=>get_option( 'consumer_key' ),
-			'consumer_secret'=>get_option( 'consumer_secret' ),
-            'event_name' => 'install',
-
-		);
-		$business_id=get_option( 'business_id' );
-		// Set up the request arguments
-		$args = array(
-			'body' => json_encode($store_data),
-			'headers' => array(
-				'Content-Type' => 'application/json',
-				'X-BUSINESS-Id' => $business_id
-			),
-			'timeout' => 15,
-		);
-		$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/app.event';
-		$response = wp_remote_post($request_url, $args);
-											
-					// Check for errors
-		if (is_wp_error($response)) {
-			echo '<p style="color:red">Please enter a valid woocommerce credentials and try to reconnect</p>
-';		} else {
-			// Success, delete integration_id
-			update_option('installation_status', 'installed');
-		}													
-							?>
-                             
-							 ></input>
-                    </td>   
-           <?php       
-}
-  
-
-	function my_custom_plugin_meta($plugin_meta, $plugin_file, $plugin_data, $status)
+	function modify_plugin_action_links_defaults($actions, $plugin_file, $plugin_data, $context)
 	{
-		if ($plugin_data['Name'] == 'Mottasl') {
 
-			// Add your link. You can also append or prepend to existing array elements.
+		if ($plugin_data['Name'] == 'Mottasl') {
+			$settings_url = admin_url('admin.php?page=wc-settings&tab=general&section=woocommerce_api_section');
+			$actions[] = '<a href="' . $settings_url . '">Settings</a>';
+		}
+		if (!in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins')))) {
+			if ($plugin_data['Name'] == 'WooCommerce') {
+				$settings_url = admin_url('admin.php?page=wc-settings&tab=general&section=woocommerce_api_section');
+				$actions[] = '<p style="color:red; background-color:gold;  border-radius:5px; padding:5px; display:block ">To activate mottasl you need to activate woocommerce and try to reconnect from mottasl settings</p>';
+			}
+		}
+
+
+		return $actions;
+	}
+
+
+
+
+	function freeship_add_admin_field_button($value)
+	{
+		?>
+		<td class="forminp forminp-<?php echo sanitize_title($value['type']) ?>">
+
+			<input type="button" name="<?php echo esc_attr($value['name']); ?>" id="<?php echo esc_attr($value['id']); ?>"
+				style="display:block; width:45%; padding: 5px ;<?php echo esc_attr($value['css']); ?>"
+				value="<?php echo esc_attr($value['name']); ?>" class="<?php echo esc_attr($value['class']); ?>"
+				onclick="handleButtonClick(event)">
+			</input>
+		</td>
+		<script>
+			function handleButtonClick(event) {
+				if (event.target.getAttribute('id') === 'connect') {
+					<?php
+					// try to get hub integration id from settings
+					$store_id = get_option('store_id', );
+
+
+					$store_data = array(
+						'store_url' => get_bloginfo('url'),
+						'consumer_key' => get_option('consumer_key'),
+						'consumer_secret' => get_option('consumer_secret'),
+						'store_email' => get_bloginfo('admin_email'),
+						'store_phone' => get_option('admin_phone'),
+						'store_name' => get_bloginfo('name'),
+						'event_name' => 'installed',
+						"platform_id" => $store_id,
+					);
+
+					// Set up the request arguments
+					$args = array(
+						'body' => json_encode($store_data),
+						'headers' => array(
+							'Content-Type' => 'application/json',
+							'X-BUSINESS-id' => get_option('business_id')
+						),
+						'timeout' => 15,
+					);
+
+					$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/installation.confirmation';
+					$response = wp_remote_post($request_url, $args);
+					// Check for errors
+					if (is_wp_error($response)) {
+						update_option('installation_status', 'pending');
+
+					} else {
+						// Success, delete integration_id
+						update_option('installation_status', 'installed');
+					}
+
+					?>
+					console.log('Success:', data);
+					window.location.reload();
+
+				}
+				else {
+					event.preventDefault();
+				}
+
+			}
+		</script>
+		<script>
+
+		</script>
+		<?php
+	}
+	function my_plugin_admin_notices()
+	{
+		if (!get_option('installation_status') == 'installed') {
+			echo "<div class='updated'><p>Please try to reconnect to Mottasl, if you face any issue please contact the support</p></div>";
+		}
+	}
+
+
+	function mottasl_redirect($plugin_name): void
+	{
+
+		if ($plugin_name == 'mottasl-woocommerce/hub.php') {
+
 			$encoded_consumer_key = get_option('encoded_consumer_key');
 			$encoded_consumer_secret = get_option('encoded_consumer_secret');
-			$connecting_link = 'https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key=' . $encoded_consumer_key . '&consumer_secret=' . $encoded_consumer_secret . '&store_url=' . get_bloginfo('url');
-
-			$new_link = '<a href=' . $connecting_link . '>connect </a>';
-
-			$plugin_meta[] = $new_link;
-			$background_color = get_option('installation_status');
-			if ($background_color !== 'installed') {
-				$background_color = 'red';
-			} else {
-				$background_color = '#70bbde';
-			}
-			$new_link = '<p " style="margin:3px;color:white;background-color:' . $background_color . '; padding: 3px;">' . get_option('installation_status') . '</p>';
-			$plugin_meta[] = $new_link;
-			return $plugin_meta;
+			exit(wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key=' . $encoded_consumer_key . '&consumer_secret=' . $encoded_consumer_secret . '&store_url=' . get_bloginfo('url')));
 		}
-		return $plugin_meta;
-
 	}
-
-	function mottasl_redirect(): void
+	function woocommerce_deactivation($plugin_file, $plugin_data)
 	{
-		$encoded_consumer_key = get_option('encoded_consumer_key');
-		$encoded_consumer_secret = get_option('encoded_consumer_secret');
-		exit(wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key=' . $encoded_consumer_key . '&consumer_secret=' . $encoded_consumer_secret . '&store_url=' . get_bloginfo('url')));
-		exit();
+
+
+		$plugin_data[] = sprintf('<strong>%s</strong>', 'please activate to connect with mottasl'); // BETTER
+		// if ($meta === 'woocommerce/woocommerce.php')
+		// $meta[0] = "Version 3.14159265359"; // BAD
+
+		return $plugin_data;
+		// action...
 	}
+
 	function wpb_admin_notice_warn()
 	{
 		if (!get_option('consumer_key') || !get_option('consumer_secret')) {
@@ -140,68 +168,81 @@ $settings_url=admin_url('admin.php?page=wc-settings&tab=general&section=woocomme
 	}
 
 
-	function hub_settings( $settings, $current_section ) {
-		if ( 'woocommerce_api_section' == $current_section ) {
-			$custom_settings = array();
-			
+	function hub_settings($settings, $current_section)
+	{
+		if ('woocommerce_api_section' == $current_section) {
 			$background_color = '';
 			if ($background_color !== 'installed') {
 				$background_color = 'red';
 			} else {
 				$background_color = '#70bbde';
 			}
-			$installaion = '<p style="margin:3px;color:white;background-color:' . $background_color . ';font-size: 15px;font-weight: bold;  text-align: center;width: 50%; border-radius: 5px;padding: 5px;">' . get_option('installation_status') . '</p>';
-			
-				$custom_settings[] = array(
-				'name' => __( 'Installation Status', 'text-domain' ),
-				'type' => 'title',
-				'desc' => __( $installaion , 'text-domain' ),
-				'id' => 'woocommerce_api_section_desc'
-			);
-		if(get_option( 'installation_status')!=='installed'){
-					$custom_settings[] =  array(
-                'name' => __( 'connect' ),
-                'type' => 'button',
-                'desc' => __( 'Connect'),
-                'desc_tip' => true,
-                'class' => 'button-primary',
-                'id'    => 'connect',
-            );
-			}
-	
-			// Add a custom setting field
-			$custom_settings[] = array(
-				'name'     => __( 'Consumer Key', 'text-domain' ),
-				'desc_tip' => __( 'Enter the generated consumer Key here', 'text-domain' ),
-				'id'       => 'consumer_key',
-				'type'     => 'text',
-				'desc'     => __( 'Enter the generated consumer Key here.', 'text-domain' ),
-			);
-		
-			$custom_settings[] = array(
-				'name'     => __( 'Consumer Secret', 'text-domain' ),
-				'desc_tip' => __( 'Enter the generated consumer secret here', 'text-domain' ),
-				'id'       => 'consumer_secret',
-				'type'     => 'text',
-				'desc'     => __( 'Enter the generated consumer secret here.', 'text-domain' ),
-			);
-			$custom_settings[] = array(
-				'name'     => __( 'Mottasl Business ID', 'text-domain' ),
-				'desc_tip' => __( 'Enter the received business id from Mottasl here', 'text-domain' ),
-				'id'       => 'business_id',
-				'type'     => 'text',
-				'desc'     => __( 'Enter the received business id from Mottasl here.', 'text-domain' ),
-			);
-	
+			$installaion = get_option('installation_status');
+			$custom_settings = array(
+				array(
+					'name' => __('Mottasl Settings'),
+					'type' => 'title',
+					'desc' => __('Enter valid mottasl credentials'),
+					'desc_tip' => true,
+					'id' => 'mottasl_Settings',
+				),
 
-			// Section end
-	
+				array(
+					'name' => __($installaion),
+					'type' => 'button',
+					'desc' => __($installaion),
+					'desc_tip' => true,
+					'class' => 'button-primary',
+					'css' => 'background-color:' . $background_color,
+					'id' => 'status',
+					'display_callback' => null
+				),
+
+
+				array(
+					'name' => __('connect'),
+					'type' => 'button',
+					'desc' => __('Connect'),
+					'desc_tip' => true,
+					'class' => 'button-primary ',
+					'id' => 'connect',
+					'css' => get_option('installation_status') == 'installed' ? 'background-color:grey ;cursor:default' : 'background-color:#70bbde',
+					'display_callback' => null
+				),
+
+
+				// Add a custom setting field
+				array(
+					'name' => __('Consumer Key', 'text-domain'),
+					'desc_tip' => __('Enter the generated consumer Key here', 'text-domain'),
+					'id' => 'consumer_key',
+					'type' => 'text',
+					'desc' => __('Enter the generated consumer Key here.', 'text-domain'),
+					'display_callback' => null
+
+				),
+
+				array(
+					'name' => __('Consumer Secret', 'text-domain'),
+					'desc_tip' => __('Enter the generated consumer secret here', 'text-domain'),
+					'id' => 'consumer_secret',
+					'type' => 'text',
+					'desc' => __('Enter the generated consumer secret here.', 'text-domain'),
+					'display_callback' => null
+				),
+
+				array('type' => 'sectionend', 'id' => 'mottasl_Settings'),
+
+			);
+
+
 			return $custom_settings;
 		}
-	
+
+
 		return $settings;
 	}
-	
+
 
 	public function register_scripts()
 	{
