@@ -109,22 +109,26 @@ function run_hub_woocommerce()
 
 function at_rest_installation_endpoint($req)
 {
-	$user_credits = $req['code'];
+	$accessToken = $req['auth']['access_token'];
+	list($consumerKey, $consumerSecret) = explode(':', $accessToken);
+
 	$key = 'woocommerce-install';
 	$algo = 'HS256';
-	if (!$user_credits)
+	if (!$accessToken)
 	{
-		return ['response' => 'consumer_key and consumer secret are required'];
+		update_option('notice_error', 'please connect to mottasl with correct data');
+
+		return new WP_Error('403', 'access token is required ', array('status' => 403));
+
 	}
-	$decoded_user_credit = JWT::decode($user_credits, new Key($key, $algo));
 	$response = array();
 	$res = new WP_REST_Response($response);
-	if ($decoded_user_credit->store_url !== get_bloginfo('url') && $decoded_user_credit->consumer_key !== get_option('consumer_key') && $decoded_user_credit->consumer_secret !== get_option('consumer_secret'))
+	if ($consumerKey->consumer_key !== get_option('consumer_key') && $consumerSecret->consumer_secret !== get_option('consumer_secret'))
 	{
 
-		$res->set_status(403);
-		$response['installation-note'] = 'installation failed';
+		update_option('notice_error', 'please connect to mottasl with correct data');
 		update_option('installation_status', 'pending');
+		return new WP_Error('installation_status', 'pending ', array('status' => 403));
 
 	} else
 	{
@@ -170,6 +174,20 @@ function your_plugin_option_updated($option_name, $old_value, $new_value)
 {
 	if ($option_name === 'consumer_key' || $option_name === 'consumer_secret')
 	{
+		// $last_link = $wpdb->get_var('SELECT * FROM `wp_woocommerce_api_keys');
+		// update_option('notice_error', $last_link);
+
+		// $store_url = get_bloginfo('url');
+		// $endpoint = '/wc-auth/v1/authorize';
+		// $params = [
+		// 	'app_name' => 'Mottasl',
+		// 	'scope' => 'read-write',
+		// 	'user_id' => get_current_user_id(),
+		// 	'return_url' => 'https://6719-197-43-50-237.ngrok-free.app/wordpress/wp-admin/plugins.php',
+		// 	'callback_url' => 'https://6719-197-43-50-237.ngrok-free.app/wc-api/v3/callback',
+		// ];
+		// $query_string = http_build_query($params);
+		// wp_redirect($store_url . $endpoint . '?' . $query_string);
 
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
 		Hub_Woocommerce_Deactivator::deactivate();
