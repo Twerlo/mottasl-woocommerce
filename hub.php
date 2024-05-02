@@ -13,7 +13,8 @@ declare(strict_types=1);
  * @package extension
  */
 
-if (!defined('WPINC')) {
+if (!defined('WPINC'))
+{
 	die;
 }
 
@@ -44,7 +45,8 @@ function generate_jwt_token($user_credits, $secret_key)
 }
 function activate_hub_woocommerce()
 {
-	if (!class_exists('WooCommerce')) {
+	if (!class_exists('WooCommerce'))
+	{
 		deactivate_plugins(plugin_basename(__FILE__));
 		wp_die('This plugin requires WooCommerce to function properly. Please install WooCommerce first.');
 	}
@@ -95,7 +97,8 @@ function run_hub_woocommerce()
 
 	// Call the function to generate the API key
 
-	if (!defined('MAIN_PLUGIN_FILE')) {
+	if (!defined('MAIN_PLUGIN_FILE'))
+	{
 		define('MAIN_PLUGIN_FILE', __FILE__);
 	}
 
@@ -109,20 +112,22 @@ function at_rest_installation_endpoint($req)
 	$user_credits = $req['code'];
 	$key = 'woocommerce-install';
 	$algo = 'HS256';
-	if (!$user_credits) {
+	if (!$user_credits)
+	{
 		return ['response' => 'consumer_key and consumer secret are required'];
 	}
 	$decoded_user_credit = JWT::decode($user_credits, new Key($key, $algo));
 	$response = array();
 	$res = new WP_REST_Response($response);
-	if ($decoded_user_credit->store_url !== get_bloginfo('url') && $decoded_user_credit->consumer_key !== get_option('consumer_key') && $decoded_user_credit->consumer_secret !== get_option('consumer_secret')) {
+	if ($decoded_user_credit->store_url !== get_bloginfo('url') && $decoded_user_credit->consumer_key !== get_option('consumer_key') && $decoded_user_credit->consumer_secret !== get_option('consumer_secret'))
+	{
 
 		$res->set_status(403);
 		$response['installation-note'] = 'installation failed';
 		update_option('installation_status', 'pending');
 
-	} else {
-		$business_id = get_option('business_id');
+	} else
+	{
 		$store_data = array(
 			'event_name' => 'installed',
 			'store_name' => get_bloginfo('name'),
@@ -134,6 +139,8 @@ function at_rest_installation_endpoint($req)
 		$response = $store_data;
 		$res->set_data($store_data);
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
+		update_option('business_id', $req['business_id']);
+		update_option('installation_status', 'installed');
 		Hub_Woocommerce_Activator::activate();
 	}
 
@@ -161,13 +168,16 @@ function at_rest_init()
 
 function your_plugin_option_updated($option_name, $old_value, $new_value)
 {
-	if ($option_name === 'consumer_key' || $option_name === 'consumer_secret') {
+	if ($option_name === 'consumer_key' || $option_name === 'consumer_secret')
+	{
 
 		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
 		Hub_Woocommerce_Deactivator::deactivate();
 		$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
 		update_option('encoded_user_credits', $encoded_user_credits);
-		wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&code=' . $encoded_user_credits);
+		update_option('installation_status', 'pending');
+		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
+		Hub_Woocommerce_Activator::activate();
 	}
 }
 run_hub_woocommerce();

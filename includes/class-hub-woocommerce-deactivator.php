@@ -30,9 +30,14 @@ class Hub_Woocommerce_Deactivator
 	 */
 	public static function deactivate()
 	{
-		Hub_Woocommerce_Deactivator::unregister_webhooks();
+		if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))))
+		{
+			Hub_Woocommerce_Deactivator::unregister_webhooks();
+		}
+		//COMMON WOOCOMMERCE METHOD
 		Hub_Woocommerce_Deactivator::uninstall_merchant();
 	}
+
 
 	private static function uninstall_merchant()
 	{
@@ -48,46 +53,58 @@ class Hub_Woocommerce_Deactivator
 
 		// Set up the request arguments
 		$args = array(
-			'body'        => json_encode($store_data),
-			'headers'     => array(
+			'body' => json_encode($store_data),
+			'headers' => array(
 				'Content-Type' => 'application/json',
 			),
-			'timeout'     => 15,
+			'timeout' => 15,
 		);
 
-		$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/app.event';
+		$request_url = 'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/app.event';
 		$response = wp_remote_post($request_url, $args);
 
 		// Check for errors
-		if (is_wp_error($response)) {
-			echo 'Error: ' . $response->get_error_message();
-		} else {
+		if (is_wp_error($response) || 200 != wp_remote_retrieve_response_code($response))
+		{
+
+
+			update_option('notice_error', json_decode(wp_remote_retrieve_body($response))->error);
+
+			//echo 'Error: ' . $response;
+		} else
+		{
+			update_option('notice_error', '');
+
 			// Success, delete integration_id
-			update_option('store_id', '');
+			update_option('business_id', '');
 		}
 	}
 
 	private static function unregister_webhooks()
-{
-    $target_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/';
+	{
+		$target_url = 'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/';
 
-    $data_store = \WC_Data_Store::load('webhook');
-    $webhooks   = $data_store->search_webhooks(['paginate' => false]);
+		$data_store = \WC_Data_Store::load('webhook');
+		$webhooks = $data_store->search_webhooks(['paginate' => false]);
 
-    if ($webhooks && is_array($webhooks)) {
-        foreach ($webhooks as $webhook_id) {
-            // Load the webhook by ID
-            $webhook = new \WC_Webhook($webhook_id);
-            $url = $webhook->get_delivery_url();
+		if ($webhooks && is_array($webhooks))
+		{
+			foreach ($webhooks as $webhook_id)
+			{
+				// Load the webhook by ID
+				$webhook = new \WC_Webhook($webhook_id);
+				$url = $webhook->get_delivery_url();
 
-            // Check if the webhook URL starts with the target URL
-            if (strncmp($url, $target_url, strlen($target_url)) === 0) {
-                $webhook->delete(true);
-                echo "Webhook with ID $webhook_id deleted successfully.\n";
-            }
-        }
-    } else {
-        echo 'No webhooks found.';
-    }
-}
+				// Check if the webhook URL starts with the target URL
+				if (strncmp($url, $target_url, strlen($target_url)) === 0)
+				{
+					$webhook->delete(true);
+					echo "Webhook with ID $webhook_id deleted successfully.\n";
+				}
+			}
+		} else
+		{
+			echo 'No webhooks found.';
+		}
+	}
 }

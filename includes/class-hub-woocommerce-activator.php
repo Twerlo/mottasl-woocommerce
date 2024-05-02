@@ -1,9 +1,10 @@
 <?php
 use Firebase\JWT\JWT;
+
 /**
  * Fired during plugin activation
  *
- * @link       https://hub.com/
+ * @link       https://mottasl.com/
  * @since      0.1.0
  *
  * @package    Hub_Woocommerce
@@ -24,29 +25,32 @@ use Firebase\JWT\JWT;
 class Hub_Woocommerce_Activator
 {
 	function generate_jwt_token($user_id, $secret_key)
-{
-	$payload = [
-		'sub' => $user_id,
-	];
+	{
+		$payload = [
+			'sub' => $user_id,
+		];
 
-	return JWT::encode($payload, 'woocommerce-install', 'HS256');
-}
+		return JWT::encode($payload, 'woocommerce-install', 'HS256');
+	}
 
 	public static function activate()
 	{
-		if ( ! class_exists( 'WooCommerce' ) ) {
-			deactivate_plugins( plugin_basename( __FILE__ ) );
-			wp_die( 'This plugin requires WooCommerce to function properly. Please install WooCommerce first.' );
+		if (!class_exists('WooCommerce'))
+		{
+			deactivate_plugins(plugin_basename(__FILE__));
+			wp_die('This plugin requires WooCommerce to function properly. Please install WooCommerce first.');
 		}
 
 
-		if (get_option('consumer_key') == '' || get_option('consumer_secret') == '') {
+		if (get_option('consumer_key') == '' || get_option('consumer_secret') == '')
+		{
 			update_option('activation_note', 'not valid');
 
 
-		} else {
+		} else
+		{
 			Hub_Woocommerce_Activator::register_webhooks();
-				}
+		}
 
 
 	}
@@ -74,8 +78,9 @@ class Hub_Woocommerce_Activator
 
 		// Set the webhook endpoint URL
 
-		foreach ($webhooks_topics_to_register as $webhook_topic) {
-			$webhook_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/' . $webhook_topic . '?store_url=' . get_bloginfo('url');
+		foreach ($webhooks_topics_to_register as $webhook_topic)
+		{
+			$webhook_url = 'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/' . $webhook_topic . '?store_url=' . get_bloginfo('url');
 			// Create the webhook data
 			$webhook_data = array(
 				'name' => 'Hub Event: ' . $webhook_topic,

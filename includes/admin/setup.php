@@ -16,6 +16,7 @@ class Setup
 	{
 		add_action('activated_plugin', array($this, 'mottasl_redirect'));
 		add_action('admin_notices', array($this, 'wpb_admin_notice_warn'));
+		add_action('admin_notices', array($this, 'errors_declaration'));
 		add_action('admin_enqueue_scripts', array($this, 'register_scripts'));
 		add_action('admin_menu', array($this, 'register_page'));
 		add_filter('woocommerce_get_sections_general', array($this, 'settings_section'));
@@ -23,19 +24,46 @@ class Setup
 		add_action('woocommerce_admin_field_button', array($this, 'freeship_add_admin_field_button'));
 		add_filter("plugin_action_links", array($this, "modify_plugin_action_links_defaults"), 10, 4);
 		add_action('admin_notices', array($this, 'my_plugin_admin_notices'));
-		add_action("after_plugin_row", array($this, 'woocommerce_deactivation'), 10, 2);
+		add_action('plugins_loaded', array($this, 'mottasl_init'));
 
+	}
 
+	function mottasl_init()
+	{
+		if (!function_exists('is_plugin_inactive')):
+			require_once (ABSPATH . '/wp-admin/includes/plugin.php');
+		endif;
+		//COMMON WOOCOMMERCE METHOD
+		if (!class_exists('WooCommerce')):
+			//ALTERNATIVE METHOD
+			//if( is_plugin_inactive( 'woocommerce/woocommerce.php' ) ) :
+			add_action('admin_init', array($this, 'hub_deactivate'));
+			add_action('admin_notices', array($this, 'hub_admin_notice'));
+
+		endif;
+	}
+	function hub_deactivate()
+	{
+		deactivate_plugins('mottasl-woocommerce/hub.php');
+	}
+	function hub_admin_notice()
+	{
+		echo '<div class="error"><p><strong>WooCommerce</strong> must be installed and activated to use Mottasl.</p></div>';
+		if (isset($_GET['activate']))
+			unset($_GET['activate']);
 	}
 	function modify_plugin_action_links_defaults($actions, $plugin_file, $plugin_data, $context)
 	{
 
-		if ($plugin_data['Name'] == 'Mottasl') {
+		if ($plugin_data['Name'] == 'Mottasl')
+		{
 			$settings_url = admin_url('admin.php?page=wc-settings&tab=general&section=woocommerce_api_section');
 			$actions[] = '<a href="' . $settings_url . '">Settings</a>';
 		}
-		if (!in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins')))) {
-			if ($plugin_data['Name'] == 'WooCommerce') {
+		if (!in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))))
+		{
+			if ($plugin_data['Name'] == 'WooCommerce')
+			{
 				$settings_url = admin_url('admin.php?page=wc-settings&tab=general&section=woocommerce_api_section');
 				$actions[] = '<p style="color:red; background-color:gold;  border-radius:5px; padding:5px; display:block ">To activate mottasl you need to activate woocommerce and try to reconnect from mottasl settings</p>';
 			}
@@ -60,54 +88,54 @@ class Setup
 			</input>
 		</td>
 		<script>
-			function handleButtonClick(event) {
-				if (event.target.getAttribute('id') === 'connect') {
-					<?php
-					// try to get hub integration id from settings
-					$store_id = get_option('store_id', );
+			function handleButtonClick ( event ) {
+				if ( event.target.getAttribute( 'id' ) === 'connect' ) {
+
+		<?php			// try to get hub integration id from settings
+					$store_id = get_option( 'store_id', );
 
 
 					$store_data = array(
-						'store_url' => get_bloginfo('url'),
-						'consumer_key' => get_option('consumer_key'),
-						'consumer_secret' => get_option('consumer_secret'),
-						'store_email' => get_bloginfo('admin_email'),
-						'store_phone' => get_option('admin_phone'),
-						'store_name' => get_bloginfo('name'),
+						'store_url' => get_bloginfo( 'url' ),
+						'consumer_key' => get_option( 'consumer_key' ),
+						'consumer_secret' => get_option( 'consumer_secret' ),
+						'store_email' => get_bloginfo( 'admin_email' ),
+						'store_phone' => get_option( 'admin_phone' ),
+						'store_name' => get_bloginfo( 'name' ),
 						'event_name' => 'installed',
 						"platform_id" => $store_id,
 					);
 
 					// Set up the request arguments
 					$args = array(
-						'body' => json_encode($store_data),
+						'body' => json_encode( $store_data ),
 						'headers' => array(
 							'Content-Type' => 'application/json',
-							'X-BUSINESS-id' => get_option('business_id')
+							'X-BUSINESS-id' => get_option( 'business_id' )
 						),
 						'timeout' => 15,
 					);
 
-					$request_url = 'https://hub-api.avaocad0.dev/api/v1/integration/events/woocommerce/installation.confirmation';
-					$response = wp_remote_post($request_url, $args);
+					$request_url = 'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/installation.confirmation';
+					$response = wp_remote_post( $request_url, $args );
 					// Check for errors
-					if (is_wp_error($response)) {
-						update_option('installation_status', 'pending');
+					if ( is_wp_error( $response ) || 200 != wp_remote_retrieve_response_code( $response ) || !empty( $response[ 'body' ] ) && $response[ 'status' ] != 200 ) {
+						update_option( 'installation_status', 'pending' );
+						update_option( 'notice_error',json_decode(wp_remote_retrieve_body($response))->message );
 
 					} else {
 						// Success, delete integration_id
-						update_option('installation_status', 'installed');
-					}
+						update_option( 'installation_status', 'installed' );
+						update_option( 'notice_error', '' );
 
+					}
 					?>
-					console.log('Success:', data);
 					window.location.reload();
 
 				}
 				else {
 					event.preventDefault();
 				}
-
 			}
 		</script>
 		<script>
@@ -117,7 +145,8 @@ class Setup
 	}
 	function my_plugin_admin_notices()
 	{
-		if (!get_option('installation_status') == 'installed') {
+		if (!get_option('installation_status') == 'installed')
+		{
 			echo "<div class='updated'><p>Please try to reconnect to Mottasl, if you face any issue please contact the support</p></div>";
 		}
 	}
@@ -126,28 +155,40 @@ class Setup
 	function mottasl_redirect($plugin_name): void
 	{
 
-		if ($plugin_name == 'mottasl-woocommerce/hub.php') {
+		if ($plugin_name == 'mottasl-woocommerce/hub.php')
+		{
 
-			$encoded_consumer_key = get_option('encoded_consumer_key');
-			$encoded_consumer_secret = get_option('encoded_consumer_secret');
-			exit(wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&consumer_key=' . $encoded_consumer_key . '&consumer_secret=' . $encoded_consumer_secret . '&store_url=' . get_bloginfo('url')));
+			$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
+			exit(wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&code=' . $encoded_user_credits));
 		}
 	}
 	function woocommerce_deactivation($plugin_file, $plugin_data)
 	{
+		if ($plugin_file == 'woocommerce/woocommerce.php')
+		{
+			deactivate_plugins('mottasl-woocommerce/hub.php');
+		}
 
-
-		$plugin_data[] = sprintf('<strong>%s</strong>', 'please activate to connect with mottasl'); // BETTER
-		// if ($meta === 'woocommerce/woocommerce.php')
-		// $meta[0] = "Version 3.14159265359"; // BAD
 
 		return $plugin_data;
-		// action...
 	}
 
+	function errors_declaration()
+	{
+		$error = get_option('notice_error');
+		if ($error)
+		{
+			echo '<div class="error notice-warning is-dismissible">
+			  <p>' . $error . '</p>
+			  </div>';
+		}
+
+	}
 	function wpb_admin_notice_warn()
 	{
-		if (!get_option('consumer_key') || !get_option('consumer_secret')) {
+
+		if (!get_option('consumer_key') || !get_option('consumer_secret'))
+		{
 			echo '<div class="error notice-warning is-dismissible">
 			  <p>Please enter a valid woocommerce credentials, go to woocommerce --> settings -->general --> Mottasl api v3.0</p>
 			  </div>';
@@ -155,11 +196,7 @@ class Setup
 			  <p>to generate woocommerce credentials go to woocommerce --> settings -->advanced --> rest api --> create an Api key<p>
 			  </div>';
 		}
-		if (get_option('business_id') == '') {
-			echo '<div class="error notice-warning is-dismissible">
-			  <p> If there is any issues with mottasll business ID please contact mottasl customer care </p>
-			  </div>';
-		}
+
 	}
 	function settings_section($sections)
 	{
@@ -170,11 +207,14 @@ class Setup
 
 	function hub_settings($settings, $current_section)
 	{
-		if ('woocommerce_api_section' == $current_section) {
+		if ('woocommerce_api_section' == $current_section)
+		{
 			$background_color = '';
-			if ($background_color !== 'installed') {
+			if ($background_color !== 'installed')
+			{
 				$background_color = 'red';
-			} else {
+			} else
+			{
 				$background_color = '#70bbde';
 			}
 			$installaion = get_option('installation_status');
@@ -250,7 +290,8 @@ class Setup
 			!method_exists('Automattic\WooCommerce\Admin\PageController', 'is_admin_or_embed_page') ||
 			!\Automattic\WooCommerce\Admin\PageController::is_admin_or_embed_page()
 
-		) {
+		)
+		{
 			return;
 		}
 
@@ -293,7 +334,8 @@ class Setup
 	public function register_page()
 	{
 
-		if (!function_exists('wc_admin_register_page')) {
+		if (!function_exists('wc_admin_register_page'))
+		{
 			return;
 		}
 
