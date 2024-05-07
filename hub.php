@@ -111,7 +111,6 @@ function at_rest_installation_endpoint($req)
 {
 	$accessToken = $req['auth']['access_token'];
 	list($consumerKey, $consumerSecret) = explode(':', $accessToken);
-
 	$key = 'woocommerce-install';
 	$algo = 'HS256';
 	if (!$accessToken)
@@ -123,7 +122,7 @@ function at_rest_installation_endpoint($req)
 	}
 	$response = array();
 	$res = new WP_REST_Response($response);
-	if ($consumerKey->consumer_key !== get_option('consumer_key') && $consumerSecret->consumer_secret !== get_option('consumer_secret'))
+	if ($consumerKey !== get_option('consumer_key') && $consumerSecret !== get_option('consumer_secret'))
 	{
 
 		update_option('notice_error', 'please connect to mottasl with correct data');
@@ -146,6 +145,7 @@ function at_rest_installation_endpoint($req)
 		update_option('business_id', $req['business_id']);
 		update_option('installation_status', 'installed');
 		Hub_Woocommerce_Activator::activate();
+		return new WP_REST_Response($response);
 	}
 
 	return ['response' => $res];
