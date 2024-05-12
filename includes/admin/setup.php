@@ -159,7 +159,7 @@ class Setup
 		{
 
 			$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
-			exit(wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocomerce&code=' . $encoded_user_credits));
+			exit(wp_redirect('https://app.avocad0.dev/ecommerce-apps?install=woocommerce&code=' . $encoded_user_credits));
 		}
 	}
 	function woocommerce_deactivation($plugin_file, $plugin_data)

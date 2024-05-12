@@ -56,6 +56,7 @@ class Hub_Woocommerce_Deactivator
 			'body' => json_encode($store_data),
 			'headers' => array(
 				'Content-Type' => 'application/json',
+				'X-Business-Id' => get_option('business_id')
 			),
 			'timeout' => 15,
 		);
