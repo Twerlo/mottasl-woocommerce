@@ -86,6 +86,16 @@ function run_hub_woocommerce()
 	 * admin-specific hooks, and public-facing site hooks.
 	 */
 	add_action('rest_api_init', 'at_rest_init');
+	add_action('rest_api_init', function () {
+		register_rest_route(
+			'wc',
+			'/test',
+			array (
+				'methods' => 'GET',
+				'callback' => 'getAllCarts',
+			)
+		);
+	});
 	add_action('updated_option', 'your_plugin_option_updated', 10, 3);
 
 	/**
@@ -105,6 +115,41 @@ function run_hub_woocommerce()
 	require plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce.php';
 	$plugin = new Hub_Woocommerce();
 	$plugin->run();
+}
+function getAllCarts()
+{
+	if (is_admin())
+	{
+		return new WP_REST_Response(['message' => 'Access denied in admin context'], 401);
+	}
+
+	// Ensure cart is loaded
+	if (is_null(WC()->cart))
+	{
+		wc_load_cart();
+	}
+	-
+
+		$cart = WC()->cart->get_cart();
+	if (empty($cart))
+	{
+		return new WP_REST_Response(['message' => 'Cart is empty'], 200);
+	}
+
+	// Construct a simplified response of the cart contents
+	$cart_items = [];
+	foreach ($cart as $item_key => $values)
+	{
+		$product = $values['data'];
+		$cart_items[] = [
+			'product_id' => $product->get_id(),
+			'quantity' => $values['quantity'],
+			'price' => $product->get_price(),
+			'title' => $product->get_title(),
+		];
+	}
+
+	return new WP_REST_Response(['cart_items' => $cart_items], 200);
 }
 
 function at_rest_installation_endpoint($req)
