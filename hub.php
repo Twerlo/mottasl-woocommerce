@@ -132,7 +132,7 @@ function getAllCarts()
 	$cart = WC()->cart->get_cart();
 	if (empty($cart))
 	{
-		return new WP_REST_Response(['message' => 'Cart is empty'], 200);
+		return new WP_REST_Response([], 200);
 	}
 
 	// Construct a simplified response of the cart contents
