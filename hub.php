@@ -154,6 +154,10 @@ function getAllCarts()
 
 function at_rest_installation_endpoint($req)
 {
+	if (!$req['auth'])
+	{
+		return new WP_REST_Response(['error' => 'not authorized'], 401);
+	}
 	$accessToken = $req['auth']['access_token'];
 	list($consumerKey, $consumerSecret) = explode(':', $accessToken);
 	$key = 'woocommerce-install';
@@ -161,8 +165,8 @@ function at_rest_installation_endpoint($req)
 	if (!$accessToken)
 	{
 		update_option('notice_error', 'please connect to mottasl with correct data');
+		return new WP_REST_Response(['error' => 'access token is required'], 403);
 
-		return new WP_Error('403', 'access token is required ', array('status' => 403));
 
 	}
 	$response = array();
@@ -172,7 +176,8 @@ function at_rest_installation_endpoint($req)
 
 		update_option('notice_error', 'please connect to mottasl with correct data');
 		update_option('installation_status', 'pending');
-		return new WP_Error('installation_status', 'pending ', array('status' => 403));
+		return new WP_REST_Response(['error' => 'installation failed', 'installation_status' => 'pending'], 403);
+
 
 	} else
 	{
@@ -190,7 +195,7 @@ function at_rest_installation_endpoint($req)
 		update_option('business_id', $req['business_id']);
 		update_option('installation_status', 'installed');
 		Hub_Woocommerce_Activator::activate();
-		return new WP_REST_Response($response);
+		return new WP_REST_Response($response, 200);
 	}
 
 	return ['response' => $res];
