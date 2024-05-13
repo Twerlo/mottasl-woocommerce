@@ -111,7 +111,7 @@ class Setup
 						'body' => json_encode( $store_data ),
 						'headers' => array(
 							'Content-Type' => 'application/json',
-							'X-BUSINESS-id' => get_option( 'business_id' )
+							'X-BUSINESS-Id' => get_option( 'business_id' )
 						),
 						'timeout' => 15,
 					);

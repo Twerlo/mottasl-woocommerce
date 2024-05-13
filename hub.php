@@ -88,8 +88,8 @@ function run_hub_woocommerce()
 	add_action('rest_api_init', 'at_rest_init');
 	add_action('rest_api_init', function () {
 		register_rest_route(
-			'wc',
-			'/test',
+			'hub/v1',
+			'/get-all-carts',
 			array (
 				'methods' => 'GET',
 				'callback' => 'getAllCarts',
