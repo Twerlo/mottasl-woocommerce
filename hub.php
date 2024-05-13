@@ -88,7 +88,7 @@ function run_hub_woocommerce()
 	add_action('rest_api_init', 'at_rest_init');
 	add_action('rest_api_init', function () {
 		register_rest_route(
-			'hub/v1',
+			'hub-api/v1',
 			'/carts',
 			array (
 				'methods' => 'GET',
@@ -128,9 +128,8 @@ function getAllCarts()
 	{
 		wc_load_cart();
 	}
-	-
 
-		$cart = WC()->cart->get_cart();
+	$cart = WC()->cart->get_cart();
 	if (empty($cart))
 	{
 		return new WP_REST_Response(['message' => 'Cart is empty'], 200);
