@@ -62,6 +62,7 @@ class Hub_Woocommerce_Activator
             cart_total double NOT NULL DEFAULT 0,
 			cart_status varchar(20) NOT NULL DEFAULT 'new',
             order_created bigint(20) NOT NULL DEFAULT 0,
+			notification_sent boolean NOT NULL DEFAULT false,
             customer_id bigint(20) NOT NULL DEFAULT 0,
             ip_address varchar(100),
             PRIMARY KEY  (id)

@@ -217,8 +217,10 @@ function wtrackt_update_cart_action_cart_updated($cart_updated)
         {
             $carts_insert = array(
                 'update_time' => current_time('mysql'),
+                'creation_time' => current_time('mysql'),
                 'cart_total' => $cart_total,
                 'customer_id' => $customer_id,
+                "notification_sent" => false,
             );
 
             if (!is_user_logged_in())
