@@ -33,12 +33,25 @@ class Hub_Woocommerce_Deactivator
 		if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))))
 		{
 			Hub_Woocommerce_Deactivator::unregister_webhooks();
+
 		}
 		//COMMON WOOCOMMERCE METHOD
+		Hub_Woocommerce_Deactivator::wtrackt_drop_table();
 		Hub_Woocommerce_Deactivator::uninstall_merchant();
+		$timestamp = wp_next_scheduled('my_function_hook');
+		if ($timestamp)
+		{
+			wp_unschedule_event($timestamp, 'my_function_hook');
+		}
 	}
 
-
+	public static function wtrackt_drop_table()
+	{
+		global $wpdb;
+		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'cart_tracking_wc');
+		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'cart_tracking_wc_cart');
+		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'cart_tracking_wc_logs');
+	}
 	private static function uninstall_merchant()
 	{
 		// try to get hub integration id from settings

@@ -22,6 +22,8 @@ use Hub\Admin\Setup;
 
 require_once plugin_dir_path(__FILE__) . 'includes/admin/setup.php';
 
+require plugin_dir_path(__FILE__) . 'includes/woocommerce-cart-tracking.php';
+require plugin_dir_path(__FILE__) . 'includes/woocommerce-cart-cron.php';
 
 
 
@@ -56,6 +58,7 @@ function activate_hub_woocommerce()
 	$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
 	update_option('encoded_user_credits', $encoded_user_credits);
 	update_option('installation_status', 'pending');
+
 }
 /**
  * The code that runs during plugin deactivation.
@@ -85,6 +88,8 @@ function run_hub_woocommerce()
 	 * The core plugin class that is used to define internationalization,
 	 * admin-specific hooks, and public-facing site hooks.
 	 */
+
+
 	add_action('rest_api_init', 'at_rest_init');
 	add_action('rest_api_init', function () {
 		register_rest_route(
@@ -123,32 +128,39 @@ function getAllCarts()
 		return new WP_REST_Response(['message' => 'Access denied in admin context'], 401);
 	}
 
+
+
 	// Ensure cart is loaded
 	if (is_null(WC()->cart))
 	{
 		wc_load_cart();
 	}
-
-	$cart = WC()->cart->get_cart();
-	if (empty($cart))
+	global $wpdb;
+	$abandoned_carts = $wpdb->get_results(
+		"SELECT * FROM `wp_cart_tracking_wc_cart` ",
+		ARRAY_A
+	);
+	//$abandoned_carts = WC()->cart->get_cart();
+	if (empty($abandoned_carts))
 	{
+
 		return new WP_REST_Response([], 200);
 	}
 
 	// Construct a simplified response of the cart contents
-	$cart_items = [];
-	foreach ($cart as $item_key => $values)
-	{
-		$product = $values['data'];
-		$cart_items[] = [
-			'product_id' => $product->get_id(),
-			'quantity' => $values['quantity'],
-			'price' => $product->get_price(),
-			'title' => $product->get_title(),
-		];
-	}
+	//$cart_items = [];
+	// foreach ($abandoned_carts as $item_key => $values)
+	// {
+	// 	$product = $values['data'];
+	// 	$cart_items[] = [
+	// 		'product_id' => $product->get_id(),
+	// 		'quantity' => $values['quantity'],
+	// 		'price' => $product->get_price(),
+	// 		'title' => $product->get_title(),
+	// 	];
+	// }
 
-	return new WP_REST_Response(['cart_items' => $cart_items], 200);
+	return new WP_REST_Response(['cart_items' => $abandoned_carts], 200);
 }
 
 function at_rest_installation_endpoint($req)
