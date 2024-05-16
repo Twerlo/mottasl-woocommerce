@@ -402,22 +402,22 @@ function wtrackt_cart_updated()
         }
         if (!is_null($new_cart))
         {
-            $wpdb->query(
-                $wpdb->prepare(
-                    "UPDATE {$wpdb->prefix}cart_tracking_wc_cart\r\n                SET cart_total = %f\r\n,customer_data = %s\r\n,products = %s\r\n              WHERE id = %d",
-                    $cart_total,
-                    json_encode(
-                        $customer_data,
-
-                    ),
-                    json_encode(
-                        $products
-
-                    ),
-
-                    $new_cart
-                )
+            $wpdb->update(
+                $table_cart_name,
+                array(
+                    'cart_total' => $cart_total,
+                    'customer_data' => json_encode($customer_data),
+                    'products' => json_encode($products)
+                ),
+                array('id' => $new_cart),
+                array(
+                    '%f',
+                    '%s',
+                    '%s'
+                ),
+                array('%d')
             );
+
         }
     }
 }
@@ -541,6 +541,9 @@ function wtrackt_new_order($order_id)
             array(
                 'body' => json_encode($cart_details),
                 'method' => 'POST',
+                'headers' => array(
+                    'X-Business-Id' => get_option('business_id')
+                )
             )
         );
 

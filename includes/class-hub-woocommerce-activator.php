@@ -65,8 +65,9 @@ class Hub_Woocommerce_Activator
 			notification_sent boolean NOT NULL DEFAULT false,
             customer_id bigint(20) NOT NULL DEFAULT 0,
             ip_address varchar(100),
-		     customer_data varchar(4000) DEFAULT 'fix',  
-			 products varchar(4000) DEFAULT 'fix',  
+			 customer_data JSON NOT NULL DEFAULT '{}',  
+            products JSON NOT NULL DEFAULT '[]', 
+		
 
             PRIMARY KEY  (id)
         ) $charset_collate;";

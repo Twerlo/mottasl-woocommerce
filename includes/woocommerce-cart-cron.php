@@ -40,10 +40,16 @@ function my_function()
         WHERE `cart_status` = 'abandoned'
           AND `notification_sent` = false
     ", ARRAY_A);
-
-    $response = wp_remote_post('https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned.cart', [
+    foreach ($carts as &$cart)
+    {
+        $cart['customer_data'] = json_decode($cart['customer_data']);
+        $cart['products'] = json_decode($cart['products']);
+    }
+    $response = wp_remote_post('https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.create', [
         'body' => json_encode($carts),
         'headers' => [
+            'X-Business-Id' => get_option('business_id')
+            ,
             'Content-Type' => 'application/json'
         ]
     ]);
