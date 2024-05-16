@@ -80,7 +80,6 @@ function wtrackt_add_to_cart($cart_item_key, $product_id, $quantity)
         }
         $wpdb->insert($table_cart_name, $carts_insert);
         $last_cart_number = $wpdb->insert_id;
-        wp_remote_post('https://b0a5-197-43-58-235.ngrok-free.app', '');
 
         if ($last_cart_number)
         {
@@ -221,6 +220,7 @@ function wtrackt_update_cart_action_cart_updated($cart_updated)
                 'cart_total' => $cart_total,
                 'customer_id' => $customer_id,
                 "notification_sent" => false,
+
             );
 
             if (!is_user_logged_in())
@@ -370,11 +370,54 @@ function wtrackt_cart_updated()
     $table_name = $wpdb->prefix . 'cart_tracking_wc';
     $table_cart_name = $wpdb->prefix . 'cart_tracking_wc_cart';
     $cart_total = WC()->cart->get_cart_contents_total();
+    $customer_id = get_current_user_id();
+
     if ($cart_total != 0)
     {
+        $customer_data = [
+
+            'first_name' => WC()->cart->get_customer()->get_billing_first_name(),
+            'last_name' => WC()->cart->get_customer()->get_billing_last_name(),
+            'email' => WC()->cart->get_customer()->get_billing_email(),
+            'customer_id' => $customer_id,
+            'phone' => get_user_meta($customer_id, 'phone_number', true),
+
+        ];
+        $products = [];
+        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item)
+        {
+            $product = $cart_item['data'];
+            $product_id = $cart_item['product_id'];
+            $quantity = $cart_item['quantity'];
+            $price = WC()->cart->get_product_price($product);
+            $link = $product->get_permalink($cart_item);
+            // Anything related to $product, check $product tutorial
+            $products[] = [
+                'product_id' => $product_id,
+                'quantity' => $quantity,
+                'price' => $price,
+                'link' => $link,
+                // Add other relevant data points here
+            ];
+        }
         if (!is_null($new_cart))
         {
-            $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}cart_tracking_wc_cart\r\n                SET cart_total = %f\r\n             WHERE id = %d", $cart_total, $new_cart));
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}cart_tracking_wc_cart\r\n                SET cart_total = %f\r\n,customer_data = %s\r\n,products = %s\r\n              WHERE id = %d",
+                    $cart_total,
+                    json_encode(
+                        $customer_data,
+
+                    ),
+                    json_encode(
+                        $products
+
+                    ),
+
+                    $new_cart
+                )
+            );
         }
     }
 }
@@ -403,6 +446,7 @@ function wtrackt_cart_item_removed($cart_item_key, $cart)
             'update_time' => current_time('mysql'),
             'cart_total' => $cart_total,
             'customer_id' => $customer_id,
+
         );
 
         if (!is_user_logged_in())
@@ -475,14 +519,39 @@ function wtrackt_new_order($order_id)
         $wpdb->update(
             $table_name,
             array(
-                'order_created' => $order_id,
+                'cart_status' => 'completed', // Update cart status to 'ordered'
+                'order_created' => $order_id, // Associate order with cart
             ),
             array(
                 'id' => $new_cart,
             ),
-            array('%d')
+            array(
+                '%s', // Data format for 'cart_status'
+                '%d' // Data format for 'order_created'
+            ),
+            array(
+                '%d' // Format for the WHERE clause
+            )
         );
+        $cart_details = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $new_cart));
+
+
+        $response = wp_remote_post(
+            'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',
+            array(
+                'body' => json_encode($cart_details),
+                'method' => 'POST',
+            )
+        );
+
+        if (is_wp_error($response))
+        {
+            $error_message = $response->get_error_message();
+            echo $error_message;
+            // Handle error,  log it or display a message
+        }
         WC()->session->__unset('wtrackt_new_cart');
+
     }
 
 }

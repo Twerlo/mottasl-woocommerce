@@ -57,7 +57,7 @@ class Hub_Woocommerce_Activator
 		$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
 		$sql_cart = "CREATE TABLE $table_name (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-			creation_time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+            creation_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             update_time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
             cart_total double NOT NULL DEFAULT 0,
 			cart_status varchar(20) NOT NULL DEFAULT 'new',
@@ -65,6 +65,9 @@ class Hub_Woocommerce_Activator
 			notification_sent boolean NOT NULL DEFAULT false,
             customer_id bigint(20) NOT NULL DEFAULT 0,
             ip_address varchar(100),
+		     customer_data varchar(4000) DEFAULT 'fix',  
+			 products varchar(4000) DEFAULT 'fix',  
+
             PRIMARY KEY  (id)
         ) $charset_collate;";
 

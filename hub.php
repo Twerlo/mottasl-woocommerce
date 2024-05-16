@@ -24,6 +24,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/admin/setup.php';
 
 require plugin_dir_path(__FILE__) . 'includes/woocommerce-cart-tracking.php';
 require plugin_dir_path(__FILE__) . 'includes/woocommerce-cart-cron.php';
+require plugin_dir_path(__FILE__) . 'includes/admin/phone-number-field.php';
 
 
 

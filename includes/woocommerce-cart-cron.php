@@ -28,7 +28,8 @@ function my_function()
     $sql = $wpdb->prepare(
         "UPDATE `wp_cart_tracking_wc_cart`
          SET `cart_status` = 'abandoned'
-        WHERE `update_time` <= DATE_SUB(NOW(), INTERVAL 15 MINUTE) ",
+        WHERE `update_time` <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)  AND `cart_status` = 'new'",
+
         $cutoff_time
     );
 
@@ -37,7 +38,7 @@ function my_function()
     $carts = $wpdb->get_results("
         SELECT * FROM `wp_cart_tracking_wc_cart`
         WHERE `cart_status` = 'abandoned'
-          AND `notification_sent` = 0
+          AND `notification_sent` = false
     ", ARRAY_A);
 
     $response = wp_remote_post('https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned.cart', [
@@ -47,6 +48,7 @@ function my_function()
         ]
     ]);
 
+
     // Check for successful response before marking as notified
     if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200)
     {
@@ -55,12 +57,14 @@ function my_function()
         $cart_ids_placeholder = implode(',', array_fill(0, count($cart_ids), '%d'));
 
         // Update the notification_sent status to true
-        $wpdb->query($wpdb->prepare("
-                UPDATE `wp_cart_tracking_wc_cart`
-                SET `notification_sent` = true
-                 WHERE `cart_status` = 'abandoned'
-          AND `notification_sent` = 0
-            ", ));
+
+        $sql = $wpdb->prepare(
+            "UPDATE `wp_cart_tracking_wc_cart`
+       SET `notification_sent` = true
+        WHERE `cart_status` = 'abandoned' AND `notification_sent` = 0 ",
+        );
+        $wpdb->query($sql);
+
     }
 }
 
