@@ -407,7 +407,8 @@ function wtrackt_cart_updated()
                 array(
                     'cart_total' => $cart_total,
                     'customer_data' => json_encode($customer_data),
-                    'products' => json_encode($products)
+                    'products' => json_encode($products),
+                    'store_url' => get_bloginfo('url')
                 ),
                 array('id' => $new_cart),
                 array(
