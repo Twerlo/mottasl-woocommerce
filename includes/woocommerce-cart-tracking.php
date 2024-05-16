@@ -414,6 +414,7 @@ function wtrackt_cart_updated()
                 array(
                     '%f',
                     '%s',
+                    '%s',
                     '%s'
                 ),
                 array('%d')
@@ -538,7 +539,7 @@ function wtrackt_new_order($order_id)
 
 
         $response = wp_remote_post(
-            'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',
+            'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.create',
             array(
                 'body' => json_encode($cart_details),
                 'method' => 'POST',

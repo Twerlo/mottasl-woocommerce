@@ -47,11 +47,11 @@ function my_function()
     }
     $response = wp_remote_post('https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.create', [
         'body' => json_encode($carts),
-        'headers' => [
+        'method' => 'POST',
+        'headers' => array(
             'X-Business-Id' => get_option('business_id')
-            ,
-            'Content-Type' => 'application/json'
-        ]
+        )
+
     ]);
 
 
