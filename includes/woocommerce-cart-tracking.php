@@ -535,13 +535,23 @@ function wtrackt_new_order($order_id)
                 '%d' // Format for the WHERE clause
             )
         );
-        $cart_details = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $new_cart));
+        $cart_details = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM $table_name WHERE id = %d",
+                $new_cart
+            ),
+            ARRAY_A // This parameter ensures the returned data is in an associative array
+        );
+
+
+        $cart_details['customer_data'] = json_decode($cart_details['customer_data']);
+        $cart_details['products'] = json_decode($cart_details['products']);
 
 
         $response = wp_remote_post(
             'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',
             array(
-                'body' => json_encode($cart_details),
+                'body' => json_encode([$cart_details]),
                 'method' => 'POST',
                 'headers' => array(
                     'X-Business-Id' => get_option('business_id')
