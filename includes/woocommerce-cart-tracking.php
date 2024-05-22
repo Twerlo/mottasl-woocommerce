@@ -549,7 +549,7 @@ function wtrackt_new_order($order_id)
 
 
         $response = wp_remote_post(
-            'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',
+            'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',
             array(
                 'body' => json_encode([$cart_details]),
                 'method' => 'POST',

@@ -145,7 +145,7 @@ class Hub_Woocommerce_Activator
 
 		foreach ($webhooks_topics_to_register as $webhook_topic)
 		{
-			$webhook_url = 'https://hub-api.avocad0.dev/api/v1/integration/events/woocommerce/' . $webhook_topic . '?store_url=' . get_bloginfo('url');
+			$webhook_url = 'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/' . $webhook_topic . '?store_url=' . get_bloginfo('url');
 			// Create the webhook data
 			$webhook_data = array(
 				'name' => 'Hub Event: ' . $webhook_topic,
