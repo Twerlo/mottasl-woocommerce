@@ -24,7 +24,7 @@ add_action(
 );
 //add_action('woocommerce_before_cart_item_quantity_zero', 'wtrackt_item_quantity_zero');
 add_action('woocommerce_cart_updated', 'wtrackt_cart_updated');
-add_action('woocommerce_new_order', 'wtrackt_new_order');
+add_action('woocommerce_store_api_checkout_order_processed', 'wtrackt_new_order');
 //add_action( 'woocommerce_cart_item_restored', '');
 add_action(
     'wp_login',
