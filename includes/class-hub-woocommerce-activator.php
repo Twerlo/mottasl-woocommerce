@@ -58,7 +58,7 @@ class Hub_Woocommerce_Activator
 		$sql_cart = "CREATE TABLE $table_name (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             creation_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            update_time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+            update_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
             cart_total double NOT NULL DEFAULT 0,
 			cart_status varchar(20) NOT NULL DEFAULT 'new',
 			store_url varchar(100) NOT NULL DEFAULT '',
@@ -126,7 +126,6 @@ class Hub_Woocommerce_Activator
 	private static function register_webhooks()
 	{
 		$webhooks_topics_to_register = [
-			'order.created',
 			'order.updated',
 			'product.updated',
 			'customer.created',

@@ -24,7 +24,7 @@ add_action(
 );
 //add_action('woocommerce_before_cart_item_quantity_zero', 'wtrackt_item_quantity_zero');
 add_action('woocommerce_cart_updated', 'wtrackt_cart_updated');
-add_action('woocommerce_new_order', 'wtrackt_new_order');
+add_action('woocommerce_store_api_checkout_order_processed', 'wtrackt_new_order');
 //add_action( 'woocommerce_cart_item_restored', '');
 add_action(
     'wp_login',
@@ -505,6 +505,69 @@ function wtrackt_cart_item_removed($cart_item_key, $cart)
     }
 
 }
+function format_order_items($order_id) {
+
+    // Get the order object
+    $order = wc_get_order($order_id);
+    $data = $order->get_data(); // order data
+
+    // Ensure the order object is valid
+    if (!$order) {
+        return $formatted_items;
+    }
+    unset($data['line_items']);
+$payment_url = $order->get_checkout_payment_url( true );
+     $formatted_items = [...$data,'payment_url' => $payment_url];
+   
+    
+    // Iterate over each item in the order
+    foreach ($order->get_items() as $item_key => $item ) {
+
+        // Retrieve item data
+        $item_id = $item->get_id();
+        $product = $item->get_product(); // Get the WC_Product object
+        $product_id = $item->get_product_id();
+        $variation_id = $item->get_variation_id();
+        $item_name = $item->get_name();
+        $quantity = $item->get_quantity();
+        $tax_class = $item->get_tax_class();
+        $line_subtotal = $item->get_subtotal();
+        $line_subtotal_tax = $item->get_subtotal_tax();
+        $line_total = $item->get_total();
+        $line_total_tax = $item->get_total_tax();
+        $product_sku = $product->get_sku();
+        $product_price = $product->get_price();
+        $product_image_id = $product->get_image_id();
+        $product_image_src = wp_get_attachment_image_src($product_image_id, 'full');
+
+        // Build the item array
+        $formatted_items['line_items'][] = [
+            'id' => $item_id,
+            'name' => $item_name,
+            'product_id' => $product_id,
+            'variation_id' => $variation_id,
+            'quantity' => $quantity,
+            'tax_class' => $tax_class,
+            'subtotal' => $line_subtotal,
+            'subtotal_tax' => $line_subtotal_tax,
+            'total' => $line_total,
+            'total_tax' => $line_total_tax,
+            'taxes' => [],
+            'meta_data' => [],
+            'sku' => $product_sku,
+            'price' => $product_price,
+            'image' => [
+                'id' => $product_image_id,
+                'src' => $product_image_src[0] // Get the URL of the product image
+            ],
+            'parent_name' => null
+        ];
+    }
+
+    // Return the formatted items array
+    return $formatted_items;
+
+}
 
 function wtrackt_new_order($order_id)
 {
@@ -543,10 +606,21 @@ function wtrackt_new_order($order_id)
             ARRAY_A // This parameter ensures the returned data is in an associative array
         );
 
+$order = wc_get_order( $order_id );
+$order_data = format_order_items($order_id); // The Order data
 
         $cart_details['customer_data'] = json_decode($cart_details['customer_data']);
         $cart_details['products'] = json_decode($cart_details['products']);
-
+  $order_response = wp_remote_post(
+            'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/order.created?store_url='.get_bloginfo( 'url'),
+            array(
+                'body' => json_encode($order_data),
+                'method' => 'POST',
+                'headers' => array(
+                    'X-Business-Id' => get_option('business_id')
+                )
+            )
+        );
 
         $response = wp_remote_post(
             'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',

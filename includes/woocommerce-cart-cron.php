@@ -35,11 +35,9 @@ function my_function()
 
     // Execute the SQL
     $wpdb->query($sql);
-    $carts = $wpdb->get_results("
-        SELECT * FROM `wp_cart_tracking_wc_cart`
-        WHERE `cart_status` = 'abandoned'
-          AND `notification_sent` = false
-    ", ARRAY_A);
+$carts = $wpdb->get_results("
+    SELECT * FROM `wp_cart_tracking_wc_cart`
+     WHERE `cart_status` = 'abandoned' ", ARRAY_A);
     foreach ($carts as &$cart)
     {
         $cart['customer_data'] = json_decode($cart['customer_data']);
