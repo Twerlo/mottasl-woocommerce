@@ -172,7 +172,7 @@ function misha_add_register_form_field()
     woocommerce_form_field(
         'phone_number',
         array(
-            'type' => 'tel',
+            'type' => 'number',
             'required' => true, // just adds an "*"
             'label' => 'Phone number'
         ),
@@ -227,7 +227,7 @@ function misha_add_field_edit_account_form()
     woocommerce_form_field(
         'phone_number',
         array(
-            'type' => 'tel',
+            'type' => 'number',
             'required' => true, // remember, this doesn't make the field required, just adds an "*"
             'class' => array('form-row-wide'),
             'label' => 'Phone number',
@@ -264,13 +264,13 @@ function misha_init_phone_mask()
     <script>
         jQuery( function ( $ ) {
             $( '#phone_number' ).intlTelInput( {
-                preferredCountries: [ 'no', 'ge' ],
-                nationalMode: false,
+                preferredCountries: [ 'eg', 'ge' ],
+                nationalMode: yes,
                 utilsScript: "utils.js" // just for formatting/placeholders etc
             } );
              $( '#phone_code' ).intlTelInput( {
-                preferredCountries: [ 'no', 'ge' ],
-                nationalMode: false,
+                preferredCountries: [ 'eg', 'ge' ],
+                nationalMode: yes,
                 utilsScript: "utils.js" // just for formatting/placeholders etc
             } );
         } );
