@@ -25,8 +25,9 @@ function my_function()
     $cutoff_time = current_time('mysql', 1) - ($time_limit * 60);
 
     // SQL to update cart_status to 'abandoned'
+    $table_cart_name= $wpdb->prefix. `cart_tracking_wc_cart`;
     $sql = $wpdb->prepare(
-        "UPDATE `wp_cart_tracking_wc_cart`
+        "UPDATE  $table_cart_name
          SET `cart_status` = 'abandoned'
         WHERE `update_time` <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)  AND `cart_status` = 'new'",
 
@@ -35,8 +36,10 @@ function my_function()
 
     // Execute the SQL
     $wpdb->query($sql);
+        $table_cart_name= $wpdb->prefix. `cart_tracking_wc_cart`;
+
 $carts = $wpdb->get_results("
-    SELECT * FROM `wp_cart_tracking_wc_cart`
+    SELECT * FROM $table_cart_name
      WHERE `cart_status` = 'abandoned' ", ARRAY_A);
     foreach ($carts as &$cart)
     {
@@ -61,9 +64,10 @@ $carts = $wpdb->get_results("
         $cart_ids_placeholder = implode(',', array_fill(0, count($cart_ids), '%d'));
 
         // Update the notification_sent status to true
+    $table_cart_name= $wpdb->prefix. `cart_tracking_wc_cart`;
 
         $sql = $wpdb->prepare(
-            "UPDATE `wp_cart_tracking_wc_cart`
+            "UPDATE  $table_cart_name
        SET `notification_sent` = true
         WHERE `cart_status` = 'abandoned' AND `notification_sent` = 0 ",
         );

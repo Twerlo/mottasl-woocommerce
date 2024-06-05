@@ -35,6 +35,7 @@ class Hub_Woocommerce_Activator
 
 	public static function woocommerce_cart_tracking_installation()
 	{
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'cart_tracking_wc';
@@ -51,7 +52,6 @@ class Hub_Woocommerce_Activator
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta($sql);
 
 		$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
@@ -66,14 +66,13 @@ class Hub_Woocommerce_Activator
 			notification_sent boolean  DEFAULT false,
             customer_id bigint(20)  DEFAULT 0,
             ip_address varchar(20),
-			 customer_data JSON  DEFAULT '{}',  
-            products JSON  DEFAULT '[]', 
+			 customer_data  JSON NOT NULL DEFAULT ('{}') ,  
+            products  JSON NOT NULL DEFAULT ('[]') , 
 		
 
             PRIMARY KEY  (id)
         ) $charset_collate;";
 
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta($sql_cart);
 
 		$table_name = $wpdb->prefix . 'cart_tracking_wc_logs';
