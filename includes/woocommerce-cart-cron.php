@@ -2,7 +2,7 @@
 add_filter('cron_schedules', function ($schedules) {
     $schedules['every-15-minutes'] = array (
         'interval' => 15 * 60,
-        'display' => __('Every 15 minutes')
+        'display' => __('Every 1 minutes')
     );
     return $schedules;
 });
@@ -15,8 +15,9 @@ add_action('my_function_hook', 'my_function');
 
 function my_function()
 {
-
+    
     global $wpdb;
+    $table_name= $wpdb->prefix . 'cart_tracking_wc_cart';
 
     // Define the time limit in minutes
     $time_limit = 15;
@@ -25,22 +26,18 @@ function my_function()
     $cutoff_time = current_time('mysql', 1) - ($time_limit * 60);
 
     // SQL to update cart_status to 'abandoned'
-    $table_cart_name= $wpdb->prefix. `cart_tracking_wc_cart`;
     $sql = $wpdb->prepare(
-        "UPDATE  $table_cart_name
+        "UPDATE $table_name
          SET `cart_status` = 'abandoned'
-        WHERE `update_time` <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)  AND `cart_status` = 'new'",
+        WHERE DATE(`update_time`) <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)  AND `cart_status` = 'new'",
 
         $cutoff_time
     );
 
     // Execute the SQL
     $wpdb->query($sql);
-        $table_cart_name= $wpdb->prefix. `cart_tracking_wc_cart`;
-
 $carts = $wpdb->get_results("
-    SELECT * FROM $table_cart_name
-     WHERE `cart_status` = 'abandoned' ", ARRAY_A);
+    SELECT * FROM $table_name  WHERE `cart_status` = 'abandoned' ", ARRAY_A);
     foreach ($carts as &$cart)
     {
         $cart['customer_data'] = json_decode($cart['customer_data']);
@@ -55,6 +52,7 @@ $carts = $wpdb->get_results("
 
     ]);
 
+    
 
     // Check for successful response before marking as notified
     if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200)
@@ -64,10 +62,9 @@ $carts = $wpdb->get_results("
         $cart_ids_placeholder = implode(',', array_fill(0, count($cart_ids), '%d'));
 
         // Update the notification_sent status to true
-    $table_cart_name= $wpdb->prefix. `cart_tracking_wc_cart`;
 
         $sql = $wpdb->prepare(
-            "UPDATE  $table_cart_name
+            "UPDATE  $wpdb->prefix. `cart_tracking_wc_cart`
        SET `notification_sent` = true
         WHERE `cart_status` = 'abandoned' AND `notification_sent` = 0 ",
         );

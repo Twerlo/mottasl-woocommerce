@@ -111,7 +111,7 @@ function wtrackt_add_to_cart($cart_item_key, $product_id, $quantity)
 
         $cart_update_query = $wpdb->query(
             $wpdb->prepare(
-                "UPDATE {$wpdb->prefix}cart_tracking_wc_cart\r\n            SET update_time = %s, cart_total = %f\r\n         WHERE id = %d",
+                "UPDATE $table_cart_name\r\n            SET update_time = %s, cart_total = %f\r\n         WHERE id = %d",
                 current_time('mysql'),
                 $cart_total,
                 $new_cart
@@ -571,6 +571,7 @@ $payment_url = $order->get_checkout_payment_url( true );
 
 function wtrackt_new_order($order_id)
 {
+
     global $wpdb;
     if (!isset(WC()->session))
     {
@@ -581,11 +582,15 @@ function wtrackt_new_order($order_id)
 
     if (!is_null($new_cart))
     {
+        
+$order = wc_get_order( $order_id );
+$order_data = format_order_items($order_id);
+$order_data_id = $order_data['id'];
         $wpdb->update(
             $table_name,
             array(
                 'cart_status' => 'completed', // Update cart status to 'ordered'
-                'order_created' => $order_id, // Associate order with cart
+                'order_created' => $order_data_id, // Associate order with cart
             ),
             array(
                 'id' => $new_cart,
@@ -598,6 +603,7 @@ function wtrackt_new_order($order_id)
                 '%d' // Format for the WHERE clause
             )
         );
+          
         $cart_details = $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT * FROM $table_name WHERE id = %d",
@@ -605,9 +611,7 @@ function wtrackt_new_order($order_id)
             ),
             ARRAY_A // This parameter ensures the returned data is in an associative array
         );
-
-$order = wc_get_order( $order_id );
-$order_data = format_order_items($order_id); // The Order data
+ // The Order data
 
         $cart_details['customer_data'] = json_decode($cart_details['customer_data']);
         $cart_details['products'] = json_decode($cart_details['products']);
@@ -621,6 +625,8 @@ $order_data = format_order_items($order_id); // The Order data
                 )
             )
         );
+
+  
 
         $response = wp_remote_post(
             'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',

@@ -35,20 +35,20 @@ class Hub_Woocommerce_Activator
 
 	public static function woocommerce_cart_tracking_installation()
 	{
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'cart_tracking_wc';
 
 		$charset_collate = $wpdb->get_charset_collate();
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 		$sql = "CREATE TABLE $table_name (
 		id bigint(20) NOT NULL AUTO_INCREMENT,
-		time datetime DEFAULT '0000-00-00 00:00:00' ,
-		product_id bigint(20) ,
-		quantity double  DEFAULT 0,
-		cart_number bigint(20) ,
-        removed boolean  DEFAULT false,
+		time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+		product_id bigint(20) NOT NULL,
+		quantity double NOT NULL DEFAULT 0,
+		cart_number bigint(20) NOT NULL,
+        removed boolean NOT NULL DEFAULT false,
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 
@@ -58,16 +58,16 @@ class Hub_Woocommerce_Activator
 		$sql_cart = "CREATE TABLE $table_name (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             creation_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            update_time datetime DEFAULT CURRENT_TIMESTAMP ,
-            cart_total double  DEFAULT 0,
+            update_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            cart_total double DEFAULT 0,
 			cart_status varchar(20)  DEFAULT 'new',
 			store_url varchar(300)  DEFAULT '',
             order_created bigint(20)  DEFAULT 0,
 			notification_sent boolean  DEFAULT false,
-            customer_id bigint(20)  DEFAULT 0,
+            customer_id bigint(20) DEFAULT 0,
             ip_address varchar(20),
-			 customer_data  JSON NOT NULL DEFAULT ('{}') ,  
-            products  JSON NOT NULL DEFAULT ('[]') , 
+			 customer_data JSON NOT NULL DEFAULT ('{}'),  
+            products JSON NOT NULL DEFAULT ('[]'), 
 		
 
             PRIMARY KEY  (id)
@@ -78,13 +78,13 @@ class Hub_Woocommerce_Activator
 		$table_name = $wpdb->prefix . 'cart_tracking_wc_logs';
 		$sql_cart = "CREATE TABLE $table_name (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-            op_time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+            op_time datetime DEFAULT '0000-00-00 00:00:00' ,
             op_type bigint(20)  DEFAULT 0,
             customer_id bigint(20)  DEFAULT 0,
-            product_id bigint(20) ,
+            product_id bigint(20) NOT NULL,
 			store_url varchar(100)  DEFAULT '',
 		quantity double  DEFAULT 0,
-		cart_number bigint(20) ,
+		cart_number bigint(20) NOT NULL,
         op_value varchar(100) DEFAULT '',
             PRIMARY KEY  (id)
         ) $charset_collate;";
