@@ -126,7 +126,6 @@ class Hub_Woocommerce_Activator
 	private static function register_webhooks()
 	{
 		$webhooks_topics_to_register = [
-			'order.created',
 			'order.updated',
 			'product.updated',
 			'customer.created',
