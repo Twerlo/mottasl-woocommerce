@@ -154,7 +154,6 @@ class Setup
 
 	function mottasl_redirect($plugin_name): void
 	{
-
 		if ($plugin_name == 'mottasl-woocommerce/hub.php')
 		{
 
@@ -306,7 +305,7 @@ class Setup
 		$script_url = plugins_url($script_path, MAIN_PLUGIN_FILE);
 
 		wp_register_script(
-			'hub',
+			'mottasl',
 			$script_url,
 			$script_asset['dependencies'],
 			$script_asset['version'],
@@ -314,15 +313,15 @@ class Setup
 		);
 
 		wp_register_style(
-			'hub',
+			'mottasl',
 			plugins_url('./../build/index.css', MAIN_PLUGIN_FILE),
 			// Add any dependencies styles may have, such as wp-components.
 			array(),
 			filemtime(dirname(MAIN_PLUGIN_FILE) . '/build/index.css')
 		);
 
-		wp_enqueue_script('hub');
-		wp_enqueue_style('hub');
+		wp_enqueue_script('mottasl');
+		wp_enqueue_style('mottasl');
 	}
 
 	/**
@@ -342,9 +341,9 @@ class Setup
 		wc_admin_register_page(
 			array(
 				'id' => 'hub-example-page',
-				'title' => __('Hub', 'hub'),
+				'title' => __('Mottasl', 'mottasl'),
 				'parent' => 'woocommerce',
-				'path' => '/hub',
+				'path' => '/mottasl',
 			)
 		);
 	}

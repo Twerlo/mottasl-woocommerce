@@ -15,8 +15,8 @@ const MyExamplePage = () => {
 	return (
 		<Fragment>
 			<Woo.Section component="article">
-				<Woo.SectionHeader title={__('Welcome to Hub!!', 'hub')} />
-				Hub is a business communication app that integrates and
+				<Woo.SectionHeader title={__('Welcome to Mottasl!!', 'Mottasl')} />
+				Mottasl is a business communication app that integrates and
 				streamlines communication with stores and their customers. It
 				provides tools for customer support, marketing, sales and more.
 			</Woo.Section>
@@ -24,13 +24,13 @@ const MyExamplePage = () => {
 	);
 };
 addAction();
-addFilter('woocommerce_admin_pages_list', 'hub', (pages) => {
+addFilter('woocommerce_admin_pages_list', 'mottasl', (pages) => {
 	pages.push({
 		container: MyExamplePage,
-		path: '/hub',
-		breadcrumbs: [__('Hub', 'hub')],
+		path: '/mottasl',
+		breadcrumbs: [__('Mottasl', 'mottasl')],
 		navArgs: {
-			id: 'hub',
+			id: 'mottasl',
 		},
 	});
 
