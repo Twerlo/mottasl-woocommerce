@@ -621,12 +621,13 @@ $order_data_id = $order_data['id'];
                 'body' => json_encode($order_data),
                 'method' => 'POST',
                 'headers' => array(
+                    'Content-Type' => 'application/json',
                     'X-Business-Id' => get_option('business_id')
                 )
             )
         );
 
-  
+
 
         $response = wp_remote_post(
             'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',
@@ -634,6 +635,8 @@ $order_data_id = $order_data['id'];
                 'body' => json_encode([$cart_details]),
                 'method' => 'POST',
                 'headers' => array(
+                                        'Content-Type' => 'application/json',
+
                     'X-Business-Id' => get_option('business_id')
                 )
             )
