@@ -380,7 +380,7 @@ function wtrackt_cart_updated()
             'last_name' => WC()->cart->get_customer()->get_billing_last_name(),
             'email' => WC()->cart->get_customer()->get_billing_email(),
             'customer_id' => $customer_id,
-            'phone' => get_user_meta($customer_id, 'phone_number', true),
+        'phone' => get_user_meta($customer_id, 'phone_code', true ).get_user_meta($customer_id, 'phone_number', true),
 
         ];
         $products = [];
