@@ -25,6 +25,9 @@ class Setup
 		add_filter("plugin_action_links", array($this, "modify_plugin_action_links_defaults"), 10, 4);
 		add_action('admin_notices', array($this, 'my_plugin_admin_notices'));
 		add_action('plugins_loaded', array($this, 'mottasl_init'));
+		apply_filters('woocommerce_webhook_deliver_async', function() {
+  return false;
+});
 
 	}
 
