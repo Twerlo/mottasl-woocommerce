@@ -74,7 +74,7 @@ class Hub_Woocommerce_Deactivator
 			'timeout' => 15,
 		);
 
-		$request_url = 'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/app.event';
+		$request_url = 'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/app.event';
 		$response = wp_remote_post($request_url, $args);
 
 		// Check for errors
@@ -96,7 +96,7 @@ class Hub_Woocommerce_Deactivator
 
 	private static function unregister_webhooks()
 	{
-		$target_url = 'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/';
+		$target_url = 'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/';
 
 		$data_store = \WC_Data_Store::load('webhook');
 		$webhooks = $data_store->search_webhooks(['paginate' => false]);
