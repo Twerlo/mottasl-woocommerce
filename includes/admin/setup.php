@@ -116,7 +116,7 @@ class Setup
 						'timeout' => 15,
 					);
 
-					$request_url = 'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/installation.confirmation';
+					$request_url = 'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/installation.confirmation';
 					$response = wp_remote_post( $request_url, $args );
 					// Check for errors
 					if ( is_wp_error( $response ) || 200 != wp_remote_retrieve_response_code( $response ) || !empty( $response[ 'body' ] ) && $response[ 'status' ] != 200 ) {
@@ -158,7 +158,7 @@ class Setup
 		{
 
 			$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
-			exit(wp_redirect('https://app.mottasl.ai/ecommerce-apps?install=woocommerce&code=' . $encoded_user_credits));
+			exit(wp_redirect('https://test.app.avocad0.dev/ecommerce-apps?install=woocommerce&code=' . $encoded_user_credits));
 		}
 	}
 	function woocommerce_deactivation($plugin_file, $plugin_data)

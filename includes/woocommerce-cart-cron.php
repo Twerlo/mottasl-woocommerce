@@ -43,7 +43,7 @@ $carts = $wpdb->get_results("
         $cart['customer_data'] = json_decode($cart['customer_data']);
         $cart['products'] = json_decode($cart['products']);
     }
-    $response = wp_remote_post('https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/abandoned_cart.create', [
+    $response = wp_remote_post('https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.create', [
         'body' => json_encode($carts),
         'method' => 'POST',
         'headers' => array(

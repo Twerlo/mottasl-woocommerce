@@ -616,7 +616,7 @@ $order_data_id = $order_data['id'];
         $cart_details['customer_data'] = json_decode($cart_details['customer_data']);
         $cart_details['products'] = json_decode($cart_details['products']);
   $order_response = wp_remote_post(
-            'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/order.created?store_url='.get_bloginfo( 'url'),
+            'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/order.created?store_url='.get_bloginfo( 'url'),
             array(
                 'body' => json_encode($order_data),
                 'method' => 'POST',
@@ -630,7 +630,7 @@ $order_data_id = $order_data['id'];
 
 
         $response = wp_remote_post(
-            'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/abandoned_cart.complete',
+            'https://test.hub.avocad0.dev/api/v1/integration/events/woocommerce/abandoned_cart.complete',
             array(
                 'body' => json_encode([$cart_details]),
                 'method' => 'POST',
