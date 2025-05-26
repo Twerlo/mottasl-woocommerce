@@ -1,9 +1,18 @@
 {
-	"name": "extension/hub",
+	"name": "twerlo/mottasl",
+	"type": "wordpress-plugin",
+	"version": "1.0.0",
+	"license": "GPL-3.0+",
+	"authors": [
+		{
+			"name": "Twerlo Development Team",
+			"homepage": "https://twerlo.com"
+		}
+	],
 	"description": "WooCommerce plugin",
 	"autoload": {
 		"psr-4": {
-			"Hub\\": "includes/"
+			"Mottasl\\": "includes/"
 		}
 	},
 	"require-dev": {
@@ -18,6 +27,7 @@
 	"require": {
 		"firebase/php-jwt": "^6.10",
 		"slim/slim": "^4.13",
-		"paragonie/sodium_compat": "^2.0"
+		"paragonie/sodium_compat": "^2.0",
+		"nikic/fast-route": "^1.3"
 	}
 }

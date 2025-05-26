@@ -9,8 +9,8 @@
  * @link       https://twerlo.com/
  * @since      0.1.0
  *
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl_Woocommerce
+ * @subpackage Mottasl_Woocommerce/includes
  */
 
 /**
@@ -20,11 +20,11 @@
  * so that it is ready for translation.
  *
  * @since      0.1.0
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl_Woocommerce
+ * @subpackage Mottasl_Woocommerce/includes
  * @author     Twerlo <support@twerlo.com>
  */
-class Hub_Woocommerce_i18n {
+class Mottasl_Woocommerce_i18n {
 
 
 	/**
@@ -35,7 +35,7 @@ class Hub_Woocommerce_i18n {
 	public function load_plugin_textdomain() {
 
 		load_plugin_textdomain(
-			'hub-woocommerce',
+			'mottasl-woocommerce',
 			false,
 			dirname( dirname( plugin_basename( __FILE__ ) ) ) . '/languages/'
 		);

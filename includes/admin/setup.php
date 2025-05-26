@@ -1,6 +1,6 @@
 <?php
 
-namespace Hub\Admin;
+namespace Mottasl\Admin;
 
 /**
  * Hub Setup Class
@@ -20,7 +20,7 @@ class Setup
 		add_action('admin_enqueue_scripts', array($this, 'register_scripts'));
 		add_action('admin_menu', array($this, 'register_page'));
 		add_filter('woocommerce_get_sections_general', array($this, 'settings_section'));
-		add_filter('woocommerce_get_settings_general', array($this, 'hub_settings'), 10, 2);
+		add_filter('woocommerce_get_settings_general', array($this, 'mottasl_settings'), 10, 2);
 		add_action('woocommerce_admin_field_button', array($this, 'freeship_add_admin_field_button'));
 		add_filter("plugin_action_links", array($this, "modify_plugin_action_links_defaults"), 10, 4);
 		add_action('admin_notices', array($this, 'my_plugin_admin_notices'));
@@ -40,16 +40,16 @@ class Setup
 		if (!class_exists('WooCommerce')):
 			//ALTERNATIVE METHOD
 			//if( is_plugin_inactive( 'woocommerce/woocommerce.php' ) ) :
-			add_action('admin_init', array($this, 'hub_deactivate'));
-			add_action('admin_notices', array($this, 'hub_admin_notice'));
+			add_action('admin_init', array($this, 'mottasl_deactivate'));
+			add_action('admin_notices', array($this, 'mottasl_admin_notice'));
 
 		endif;
 	}
-	function hub_deactivate()
+	function mottasl_deactivate()
 	{
-		deactivate_plugins('mottasl-woocommerce/hub.php');
+		deactivate_plugins('mottasl-woocommerce/mottasl.php');
 	}
-	function hub_admin_notice()
+	function mottasl_admin_notice()
 	{
 		echo '<div class="error"><p><strong>WooCommerce</strong> must be installed and activated to use Mottasl.</p></div>';
 		if (isset($_GET['activate']))
@@ -157,7 +157,7 @@ class Setup
 
 	function mottasl_redirect($plugin_name): void
 	{
-		if ($plugin_name == 'mottasl-woocommerce/hub.php')
+		if ($plugin_name == 'mottasl-woocommerce/mottasl.php')
 		{
 
 			$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
@@ -168,7 +168,7 @@ class Setup
 	{
 		if ($plugin_file == 'woocommerce/woocommerce.php')
 		{
-			deactivate_plugins('mottasl-woocommerce/hub.php');
+			deactivate_plugins('mottasl-woocommerce/mottasl.php');
 		}
 
 
@@ -207,7 +207,7 @@ class Setup
 	}
 
 
-	function hub_settings($settings, $current_section)
+	function mottasl_settings($settings, $current_section)
 	{
 		if ('woocommerce_api_section' == $current_section)
 		{
@@ -343,7 +343,7 @@ class Setup
 
 		wc_admin_register_page(
 			array(
-				'id' => 'hub-example-page',
+				'id' => 'mottasl-example-page',
 				'title' => __('Mottasl', 'mottasl'),
 				'parent' => 'woocommerce',
 				'path' => '/mottasl',

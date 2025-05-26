@@ -3,11 +3,11 @@
 /**
  * Register all actions and filters for the plugin
  *
- * @link       https://hub.com/
+ * @link       https://mottasl.com/
  * @since      0.1.0
  *
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl_Woocommerce
+ * @subpackage Mottasl_Woocommerce/includes
  */
 
 /**
@@ -17,11 +17,11 @@
  * the plugin, and register them with the WordPress API. Call the
  * run function to execute the list of actions and filters.
  *
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl_Woocommerce
+ * @subpackage Mottasl_Woocommerce/includes
  * @author     Twerlo <support@twerlo.com>
  */
-class Hub_Woocommerce_Loader {
+class Mottasl_Woocommerce_Loader {
 
 	/**
 	 * The array of actions registered with WordPress.

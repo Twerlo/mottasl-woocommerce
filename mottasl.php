@@ -1,7 +1,15 @@
 <?php
 declare(strict_types=1);
 /**
- * Plugin Name: Mottasl
+ * Plugin Name: Mottasl Woocommerce
+ * Plugin URI: https://mottasl.com
+ * Text Domain: mottasl-woocommerce
+ * Requires at least: 5.7
+ * Requires PHP: 7.4
+ * Tested up to: 6.5
+ * Stable tag: 1.0.0
+ * License: GNU General Public License v3.0
+ * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  * Version: 0.1.0
  * Author: Twerlo
  * Author URI: https://twerlo.com
@@ -17,25 +25,24 @@ if (!defined('WPINC'))
 {
 	die;
 }
-
-use Hub\Admin\Setup;
+define('MOTTASL_PLUGIN_DIR', plugin_dir_path(__FILE__));
+if (file_exists(MOTTASL_PLUGIN_DIR . 'vendor/autoload.php')) {
+	require_once MOTTASL_PLUGIN_DIR . 'vendor/autoload.php';
+} else {
+	wp_die('The Mottasl plugin is missing required dependencies. Please reinstall the plugin.');
+	
+}
 
 require_once plugin_dir_path(__FILE__) . 'includes/admin/setup.php';
 
-require plugin_dir_path(__FILE__) . 'includes/woocommerce-cart-tracking.php';
-require plugin_dir_path(__FILE__) . 'includes/woocommerce-cart-cron.php';
-require plugin_dir_path(__FILE__) . 'includes/admin/phone-number-field.php';
+
+require MOTTASL_PLUGIN_DIR . 'includes/woocommerce-cart-tracking.php';
+require MOTTASL_PLUGIN_DIR . 'includes/woocommerce-cart-cron.php';
+require MOTTASL_PLUGIN_DIR . 'includes/admin/phone-number-field.php';
 
 
+define('MOTTASL_WOOCOMMERCE_VERSION', '1.0.0');
 
-define('HUB_WOOCOMMERCE_VERSION', '0.1.0');
-
-
-/**
- * The code that runs during plugin activation.
- * This action is documented in includes/class-hub-woocommerce-activator.php
- */
-require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -46,16 +53,16 @@ function generate_jwt_token($user_credits, $secret_key)
 
 	return JWT::encode($payload, 'woocommerce-install', 'HS256');
 }
-function activate_hub_woocommerce()
+function activate_mottasl_woocommerce()
 {
 	if (!class_exists('WooCommerce'))
 	{
 		deactivate_plugins(plugin_basename(__FILE__));
-		wp_die('This plugin requires WooCommerce to function properly. Please install WooCommerce first.');
+		wp_die('The Mottasl Plugin is required to be activated with WooCommerce. Please install and activate WooCommerce first.', 'Plugin activation error', array('response' => 200, 'back_link' => true));
 	}
 	// Retrieved from filtered POST data
-	require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
-	Hub_Woocommerce_Activator::activate();
+	require_once plugin_dir_path(__FILE__) . 'includes/class-mottasl-woocommerce-activator.php';
+	Mottasl_Woocommerce_Activator::activate();
 	$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
 	update_option('encoded_user_credits', $encoded_user_credits);
 	update_option('installation_status', 'pending');
@@ -63,16 +70,16 @@ function activate_hub_woocommerce()
 }
 /**
  * The code that runs during plugin deactivation.
- * This action is documented in includes/class-hub-woocommerce-deactivator.php
+ * This action is documented in includes/class-mottasl-woocommerce-deactivator.php
  */
-function deactivate_hub_woocommerce()
+function deactivate_mottasl_woocommerce()
 {
-	require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
-	Hub_Woocommerce_Deactivator::deactivate();
+	require_once plugin_dir_path(__FILE__) . 'includes/class-mottasl-woocommerce-deactivator.php';
+	Mottasl_Woocommerce_Deactivator::deactivate();
 }
 
-register_activation_hook(__FILE__, 'activate_hub_woocommerce');
-register_deactivation_hook(__FILE__, 'deactivate_hub_woocommerce');
+register_activation_hook(__FILE__, 'activate_mottasl_woocommerce');
+register_deactivation_hook(__FILE__, 'deactivate_mottasl_woocommerce');
 
 /**
  * Begins execution of the plugin.
@@ -83,7 +90,7 @@ register_deactivation_hook(__FILE__, 'deactivate_hub_woocommerce');
  *
  * @since    0.1.0
  */
-function run_hub_woocommerce()
+function run_mottasl_woocommerce()
 {
 	/**
 	 * The core plugin class that is used to define internationalization,
@@ -117,9 +124,9 @@ function run_hub_woocommerce()
 	{
 		define('MAIN_PLUGIN_FILE', __FILE__);
 	}
+	require plugin_dir_path(__FILE__) . 'includes/class-mottasl-woocommerce.php';
 
-	require plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce.php';
-	$plugin = new Hub_Woocommerce();
+	$plugin = new Mottasl_Woocommerce();
 	$plugin->run();
 }
 function getAllCarts()
@@ -203,10 +210,10 @@ function at_rest_installation_endpoint($req)
 		$res->set_status(200);
 		$response = $store_data;
 		$res->set_data($store_data);
-		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
+		require_once plugin_dir_path(__FILE__) . 'includes/class-mottasl-woocommerce-activator.php';
 		update_option('business_id', $req['business_id']);
 		update_option('installation_status', 'installed');
-		Hub_Woocommerce_Activator::activate();
+		Mottasl_Woocommerce_Activator::activate();
 		return new WP_REST_Response($response, 200);
 	}
 
@@ -251,13 +258,36 @@ function your_plugin_option_updated($option_name, $old_value, $new_value)
 		// $query_string = http_build_query($params);
 		// wp_redirect($store_url . $endpoint . '?' . $query_string);
 
-		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-deactivator.php';
-		Hub_Woocommerce_Deactivator::deactivate();
+		require_once plugin_dir_path(__FILE__) . 'includes/class-mottasl-woocommerce-deactivator.php';
+		Mottasl_Woocommerce_Deactivator::deactivate();
 		$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
 		update_option('encoded_user_credits', $encoded_user_credits);
 		update_option('installation_status', 'pending');
-		require_once plugin_dir_path(__FILE__) . 'includes/class-hub-woocommerce-activator.php';
-		Hub_Woocommerce_Activator::activate();
+		require_once plugin_dir_path(__FILE__) . 'includes/class-mottasl-woocommerce-activator.php';
+		Mottasl_Woocommerce_Activator::activate();
 	}
 }
-run_hub_woocommerce();
+run_mottasl_woocommerce();
+
+register_activation_hook(__FILE__, 'mottasl_plugin_activate');
+
+function mottasl_plugin_activate() {
+    if (!function_exists('is_plugin_active')) {
+        include_once(ABSPATH . 'wp-admin/includes/plugin.php');
+    }
+    if (!is_plugin_active('woocommerce/woocommerce.php')) {
+        deactivate_plugins(plugin_basename(__FILE__));
+        update_option('mottasl_wc_missing_notice', true);
+    }
+}
+
+add_action('admin_notices', 'mottasl_wc_missing_notice');
+function mottasl_wc_missing_notice() {
+    if (get_option('mottasl_wc_missing_notice')) {
+        echo '<div class="notice notice-error is-dismissible">
+            <p><strong>Mottasl Plugin requires WooCommerce to be installed and activated.</strong></p>
+            <p><a href="' . esc_url(admin_url('plugin-install.php?s=woocommerce&tab=search&type=term')) . '">Click here to install WooCommerce</a>.</p>
+        </div>';
+        delete_option('mottasl_wc_missing_notice');
+    }
+}

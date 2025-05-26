@@ -7,8 +7,8 @@ use Firebase\JWT\JWT;
  * @link       https://mottasl.com/
  * @since      0.1.0
  *
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl
+ * @subpackage Mottasl/includes
  */
 
 /**
@@ -17,12 +17,12 @@ use Firebase\JWT\JWT;
  * This class defines all code necessary to run during the plugin's activation.
  *
  * @since      0.1.0
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl
+ * @subpackage Mottasl/includes
  * @author     Twerlo <support@twerlo.com>
  */
 
-class Hub_Woocommerce_Activator
+class Mottasl_Woocommerce_Activator
 {
 	function generate_jwt_token($user_id, $secret_key)
 	{
@@ -98,6 +98,7 @@ class Hub_Woocommerce_Activator
 	}
 	public static function activate()
 	{
+		var_dump('activating plugin');
 		if (!class_exists('WooCommerce'))
 		{
 			deactivate_plugins(plugin_basename(__FILE__));
@@ -112,8 +113,8 @@ class Hub_Woocommerce_Activator
 
 		} else
 		{
-			Hub_Woocommerce_Activator::register_webhooks();
-			Hub_Woocommerce_Activator::woocommerce_cart_tracking_installation();
+			Mottasl_Woocommerce_Activator::register_webhooks();
+			Mottasl_Woocommerce_Activator::woocommerce_cart_tracking_installation();
 		}
 
 

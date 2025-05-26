@@ -1,11 +1,11 @@
 {
 	"$schema": "https://schemas.wp.org/trunk/block.json",
 	"apiVersion": 3,
-	"name": "extension/hub",
+	"name": "twerlo/mottasl",
 	"version": "0.1.0",
-	"title": "Hub",
+	"title": "Mottasl",
 	"category": "widgets",
-	"textdomain": "hub",
+	"textdomain": "mottasl",
 	"editorScript": "file:./build/index.js",
 	"editorStyle": "file:./build/index.css",
 	"style": "file:./build/style-index.css"

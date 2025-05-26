@@ -6,8 +6,8 @@
  * @link       https://hub.com/
  * @since      0.1.0
  *
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl_Woocommerce
+ * @subpackage Mottasl_Woocommerce/includes
  */
 
 /**
@@ -16,11 +16,11 @@
  * This class defines all code necessary to run during the plugin's deactivation.
  *
  * @since      0.1.0
- * @package    Hub_Woocommerce
- * @subpackage Hub_Woocommerce/includes
+ * @package    Mottasl_Woocommerce
+ * @subpackage Mottasl_Woocommerce/includes
  * @author     Twerlo <support@twerlo.com>
  */
-class Hub_Woocommerce_Deactivator
+class Mottasl_Woocommerce_Deactivator
 {
 
 	/**
@@ -32,12 +32,12 @@ class Hub_Woocommerce_Deactivator
 	{
 		if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))))
 		{
-			Hub_Woocommerce_Deactivator::unregister_webhooks();
+			Mottasl_Woocommerce_Deactivator::unregister_webhooks();
 
 		}
 		//COMMON WOOCOMMERCE METHOD
-		Hub_Woocommerce_Deactivator::wtrackt_drop_table();
-		Hub_Woocommerce_Deactivator::uninstall_merchant();
+		Mottasl_Woocommerce_Deactivator::wtrackt_drop_table();
+		Mottasl_Woocommerce_Deactivator::uninstall_merchant();
 		$timestamp = wp_next_scheduled('my_function_hook');
 		if ($timestamp)
 		{
@@ -122,3 +122,4 @@ class Hub_Woocommerce_Deactivator
 		}
 	}
 }
+     

@@ -3,10 +3,10 @@
 
 
 require_once plugin_dir_path(dirname(__FILE__)) . 'includes/admin/setup.php';
-use Hub\Admin\Setup;
+use Mottasl\Admin\Setup;
 
 
-class Hub_Woocommerce
+class Mottasl_Woocommerce
 {
 
 	/**
@@ -15,7 +15,7 @@ class Hub_Woocommerce
 	 *
 	 * @since    0.1.0
 	 * @access   protected
-	 * @var      Hub__Woocommerce_Loader    $loader    Maintains and registers all hooks for the plugin.
+	 * @var      MOTTASL_Woocommerce_Loader    $loader    Maintains and registers all hooks for the plugin.
 	 */
 	protected $loader;
 
@@ -52,12 +52,12 @@ class Hub_Woocommerce
 				new Setup();
 			}
 
-		if (defined('HUB__WOOCOMMERCE_VERSION')) {
-			$this->version = HUB__WOOCOMMERCE_VERSION;
+		if (defined('MOTTASL__WOOCOMMERCE_VERSION')) {
+			$this->version = MOTTASL__WOOCOMMERCE_VERSION;
 		} else {
 			$this->version = '0.1.0';
 		}
-		$this->plugin_name = 'hub-woocommerce';
+		$this->plugin_name = 'mottasl-woocommerce';
 
 		$this->load_dependencies();
 		$this->set_locale();
@@ -68,10 +68,10 @@ class Hub_Woocommerce
 	 *
 	 * Include the following files that make up the plugin:
 	 *
-	 * - Hub__Woocommerce_Loader. Orchestrates the hooks of the plugin.
-	 * - Hub_Woocommerce_i18n. Defines internationalization functionality.
-	 * - Hub__Woocommerce_Admin. Defines all hooks for the admin area.
-	 * - Hub__Woocommerce_Public. Defines all hooks for the public side of the site.
+	 * - MOTTASL_Woocommerce_Loader. Orchestrates the hooks of the plugin.
+	 * - Mottasl_Woocommerce_i18n. Defines internationalization functionality.
+	 * - Mottasl_Woocommerce_Admin. Defines all hooks for the admin area.
+	 * - Mottasl_Woocommerce_Public. Defines all hooks for the public side of the site.
 	 *
 	 * Create an instance of the loader which will be used to register the hooks
 	 * with WordPress.
@@ -86,26 +86,26 @@ class Hub_Woocommerce
 		 * The class responsible for orchestrating the actions and filters of the
 		 * core plugin.
 		 */
-		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-hub-woocommerce-loader.php';
+		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-mottasl-woocommerce-loader.php';
 
 		/**
 		 * The class responsible for defining internationalization functionality
 		 * of the plugin.
 		 */
-		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-hub-woocommerce-i18n.php';
+		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-mottasl-woocommerce-i18n.php';
 
 		/**
 		 * The class responsible for defining all actions that occur in the admin area.
 		 */
 		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/admin/setup.php';
 
-		$this->loader = new Hub_Woocommerce_Loader();
+		$this->loader = new Mottasl_Woocommerce_Loader();
 	}
 
 	/**
 	 * Define the locale for this plugin for internationalization.
 	 *
-	 * Uses the Hub_Woocommerce_i18n class in order to set the domain and to register the hook
+	 * Uses the Mottasl_Woocommerce_i18n class in order to set the domain and to register the hook
 	 * with WordPress.
 	 *
 	 * @since    0.1.0
@@ -114,7 +114,7 @@ class Hub_Woocommerce
 	private function set_locale()
 	{
 
-		$plugin_i18n = new Hub_Woocommerce_i18n();
+		$plugin_i18n = new Mottasl_Woocommerce_i18n();
 
 		$this->loader->add_action('plugins_loaded', $plugin_i18n, 'load_plugin_textdomain');
 	}
@@ -145,7 +145,7 @@ class Hub_Woocommerce
 	 * The reference to the class that orchestrates the hooks with the plugin.
 	 *
 	 * @since     0.1.0
-	 * @return    Hub__Woocommerce_Loader    Orchestrates the hooks of the plugin.
+	 * @return    MOTTASL_Woocommerce_Loader    Orchestrates the hooks of the plugin.
 	 */
 	public function get_loader()
 	{

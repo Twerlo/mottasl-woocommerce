@@ -8,7 +8,7 @@ $pharName  = 'your-plugin.phar';
 
 try {
   $phar = new Phar($pharName);
-  $phar->setStub(Phar::PHAR_PHP_BINDIR . '/hub.php'); // Replace with your main plugin file
+  $phar->setStub(Phar::PHAR_PHP_BINDIR . '/mottasl.php'); // Replace with your main plugin file
 
   // Exclude specific directories (optional)
   $phar->addFilesFromDirectory($pluginDir, '.', array(
