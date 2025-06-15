@@ -1,0 +1,36 @@
+{
+    "name": "mottasl/woocommerce",
+    "description": "Integrates WooCommerce with Mottasl.ai platform for sending order status updates and abandoned cart events.",
+    "type": "wordpress-plugin",
+    "license": "GPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Ahmed Zidan / Twerlo",
+            "email": "ahmed.zidan@twerlo.com",
+            "homepage": "https://mottasl.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=7.4",
+        "mpdf/mpdf": "^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mottasl\\WooCommerce\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "7.4"
+        }
+    },
+    "scripts": {
+        "build": [
+            "@composer install --no-dev --optimize-autoloader"
+        ],
+        "makepot": "wp i18n make-pot . languages/mottasl-woocommerce.pot --domain=mottasl-woocommerce --exclude=\"vendor,node_modules\""
+    }
+}

@@ -1,0 +1,29 @@
+/**
+ * Mottasl WooCommerce Admin Styles
+ */
+
+.mottasl-settings-wrap .form-table th {
+    width: 200px; /* Adjust as needed for label alignment */
+}
+
+.mottasl-settings-wrap .mottasl-media-preview img {
+    border: 1px solid #ddd;
+    padding: 5px;
+    background: #fff;
+    max-width: 200px;
+    height: auto;
+    display: block; /* Ensure it's on its own line if desired */
+}
+
+/* Tab Styles */
+.mottasl-nav-tab-wrapper {
+    margin-bottom: 20px;
+}
+.mottasl-tab-content {
+    /* display: none; initially handled by JS or inline style */
+}
+.mottasl-tab-content.active {
+    display: block;
+}
+
+/* Add more specific styles as needed */

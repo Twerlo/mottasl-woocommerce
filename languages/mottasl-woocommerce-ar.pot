@@ -1,0 +1,288 @@
+# Copyright (C) 2025 Twerlo
+# This file is distributed under the GPL-3.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Mottasl for WooCommerce 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/mottasl\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2025-05-28T07:04:44+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: mottasl-woocommerce"
+
+#. Plugin Name of the plugin
+#: mottasl.php
+#: mottasl.php:51
+#: src/Core/WooCommerceChecker.php:60
+msgid "Mottasl for WooCommerce"
+msgstr "متصل لـ WooCommerce"
+
+#. Plugin URI of the plugin
+#: mottasl.php
+msgid "https://mottasl.com"
+msgstr ""
+
+#. Description of the plugin
+#: mottasl.php
+msgid "Integrates WooCommerce with the Mottasl.ai platform, sending order status updates, abandoned cart events, and generating invoices."
+msgstr "يعمل على دمج WooCommerce مع منصة Mottasl.ai، وإرسال تحديثات حالة الطلب، وأحداث سلة التسوق المهجورة، وتوليد الفواتير."
+
+#. Author of the plugin
+#: mottasl.php
+msgid "Twerlo"
+msgstr "تويرلو"
+
+#. Author URI of the plugin
+#: mottasl.php
+msgid "https://twerlo.com"
+msgstr ""
+
+#. translators: %s: Mottasl for WooCommerce
+#: mottasl.php:50
+#, php-format
+msgid "<strong>%s</strong> requires Composer dependencies to be installed. Please run <code>composer install</code> in the plugin directory or download a pre-built version."
+msgstr "<strong>%s</strong> يتطلب تثبيت تبعيات Composer. يرجى تشغيل <code>composer install</code> في دليل المكون الإضافي أو تنزيل إصدار مُعد مسبقًا."
+
+#: mottasl.php:97
+msgid "Mottasl for WooCommerce could not initialize its main class. Please check for conflicts or reinstall the plugin."
+msgstr "تعذر على Mottasl لـ WooCommerce تهيئة فئته الرئيسية. يرجى التحقق من وجود تعارضات أو إعادة تثبيت المكون الإضافي."
+
+#. translators: %1$s: Mottasl for WooCommerce, %2$s: WooCommerce
+#. translators: %1$s: Mottasl for WooCommerce (plugin name), %2$s: WooCommerce (plugin name)
+#: mottasl.php:131
+#: src/Core/WooCommerceChecker.php:59
+#, php-format
+msgid "<strong>%1$s</strong> requires %2$s to be installed and active. Please install and activate %2$s to use this plugin."
+msgstr ""
+
+#: src/Admin/Settings.php:101
+msgid "Mottasl Settings"
+msgstr "إعدادات متصل"
+
+#: src/Admin/Settings.php:102
+msgid "Mottasl"
+msgstr "متصل"
+
+#: src/Admin/Settings.php:140
+#: templates/admin/settings-page.php:50
+msgid "General Settings"
+msgstr "الإعدادات العامة"
+
+#: src/Admin/Settings.php:147
+msgid "Mottasl Business ID (Optional)"
+msgstr "مفتاح واجهة برمجة تطبيقات متصل (اختياري)"
+
+#: src/Admin/Settings.php:156
+#: templates/admin/settings-page.php:57
+msgid "Invoice Settings"
+msgstr "إعدادات الفاتورة"
+
+#: src/Admin/Settings.php:163
+msgid "Store Name for Invoice"
+msgstr "اسم المتجر للفاتورة"
+
+#: src/Admin/Settings.php:167
+msgid "The name of your store as it should appear on invoices."
+msgstr "اسم متجرك كما يجب أن يظهر على الفواتير."
+
+#: src/Admin/Settings.php:172
+msgid "Store Address for Invoice"
+msgstr "عنوان المتجر للفاتورة"
+
+#: src/Admin/Settings.php:176
+msgid "Full store address (street, city, state, zip, country). One line per entry."
+msgstr "العنوان الكامل للمتجر (الشارع، المدينة، الولاية، الرمز البريدي، البلد). سطر واحد لكل إدخال."
+
+#: src/Admin/Settings.php:181
+msgid "Store VAT/Tax ID"
+msgstr "معرف ضريبة القيمة المضافة/الضرائب للمتجر"
+
+#: src/Admin/Settings.php:185
+msgid "Your store's VAT or Tax Identification Number."
+msgstr "رقم تعريف ضريبة القيمة المضافة أو الضرائب لمتجرك."
+
+#: src/Admin/Settings.php:190
+msgid "Store Logo URL for Invoice"
+msgstr "رابط شعار المتجر للفاتورة"
+
+#: src/Admin/Settings.php:194
+msgid "Upload or enter the URL for your store logo to appear on invoices."
+msgstr "قم بتحميل أو إدخال رابط شعار متجرك ليظهر على الفواتير."
+
+#: src/Admin/Settings.php:199
+msgid "Generate Invoice on Status(es)"
+msgstr "توليد الفاتورة عند الحالة (الحالات)"
+
+#: src/Admin/Settings.php:203
+msgid "Select WooCommerce order statuses upon which an invoice should be automatically generated."
+msgstr "حدد حالات طلب WooCommerce التي يجب أن يتم توليد فاتورة تلقائيًا عندها."
+
+#: src/Admin/Settings.php:209
+#: templates/admin/settings-page.php:64
+msgid "Event Synchronization"
+msgstr "مزامنة الأحداث"
+
+#: src/Admin/Settings.php:216
+msgid "Enable Order Status Sync"
+msgstr "تمكين مزامنة حالة الطلب"
+
+#: src/Admin/Settings.php:220
+msgid "Send order status updates to Mottasl.ai."
+msgstr "إرسال تحديثات حالة الطلب إلى Mottasl.ai."
+
+#: src/Admin/Settings.php:225
+msgid "Enable Abandoned Cart Tracking"
+msgstr "تمكين تتبع سلة التسوق المتروكة"
+
+#: src/Admin/Settings.php:229
+msgid "Track and send abandoned cart events to Mottasl.ai."
+msgstr "تتبع وإرسال أحداث سلة التسوق المتروكة إلى Mottasl.ai."
+#: src/Admin/Settings.php:234
+
+#: src/Admin/Settings.php:268
+msgid "Configure general settings for the Mottasl WooCommerce integration."
+msgstr "تكوين الإعدادات العامة لتكامل Mottasl مع WooCommerce."
+
+#: src/Admin/Settings.php:272
+msgid "Set up the details that will appear on your invoices and when they are generated."
+msgstr "قم بإعداد التفاصيل التي ستظهر على فواتيرك ومتى يتم إنشاؤها."
+
+#: src/Admin/Settings.php:275
+msgid "Control which events are synchronized with Mottasl.ai."
+msgstr "تحكم في الأحداث التي تتم مزامنتها مع Mottasl.ai."
+
+#: src/Admin/Settings.php:281
+msgid "Enter your Mottasl Business ID if provided or required for certain features."
+msgstr "أدخل مفتاح واجهة برمجة تطبيقات Mottasl الخاص بك إذا تم توفيره أو إذا كان مطلوبًا لبعض الميزات."
+
+#: src/Admin/Settings.php:308
+msgid "Upload/Select Image"
+msgstr "تحميل/تحديد صورة"
+
+#: src/Admin/Settings.php:372
+msgid "You do not have sufficient permissions to access this page."
+msgstr "ليس لديك أذونات كافية للوصول إلى هذه الصفحة."
+
+#: src/Admin/Settings.php:388
+#: templates/admin/settings-page.php:74
+msgid "Save Settings"
+msgstr "حفظ الإعدادات"
+
+#: src/Core/Activator.php:168
+msgid "Mottasl for WooCommerce plugin requires WooCommerce to be active and was automatically deactivated."
+msgstr "يتطلب مكون Mottasl لـ WooCommerce أن يكون WooCommerce نشطًا وتم تعطيله تلقائيًا."
+
+#: src/Core/WooCommerceChecker.php:61
+msgid "WooCommerce"
+msgstr "WooCommerce"
+
+#: src/Events/AbandonedCartHandler.php:494
+msgid "Cart recovery link is invalid or expired."
+msgstr "رابط استرداد السلة غير صالح أو منتهي الصلاحية."
+
+#: src/Events/AbandonedCartHandler.php:502
+msgid "Cart recovery link is invalid (token mismatch)."
+msgstr "رابط استرداد السلة غير صالح (عدم تطابق الرمز)."
+
+#: src/Events/AbandonedCartHandler.php:511
+msgid "This cart belongs to another user. Please log in as the correct user to recover this cart."
+msgstr "تعود هذه السلة إلى مستخدم آخر. يرجى تسجيل الدخول كمستخدم صحيح لاسترداد هذه السلة."
+
+#: src/Events/AbandonedCartHandler.php:530
+msgid "Your cart has been restored."
+msgstr "تم استرداد سلتك."
+
+#: src/Invoices/InvoiceGenerator.php:95
+#: templates/invoices/default-invoice.php:32
+#, php-format
+msgid "Invoice #%s"
+msgstr "فاتورة #%s"
+
+#: src/Plugin.php:186
+msgid "Cloning is forbidden."
+msgstr "استنساخ غير مسموح به."
+
+#: src/Plugin.php:190
+msgid "Unserializing instances of this class is forbidden."
+msgstr "عدم السماح بإلغاء تسلسل مثيلات هذه الفئة."
+
+#: templates/admin/settings-page.php:34
+msgid "General"
+msgstr "عام"
+
+#: templates/admin/settings-page.php:35
+msgid "Invoice"
+msgstr "فاتورة"
+
+#: templates/admin/settings-page.php:36
+msgid "Synchronization"
+msgstr "مزامنة"
+
+#: templates/invoices/default-invoice.php:130
+msgid "VAT/Tax ID:"
+msgstr "رقم تعريف ضريبة القيمة المضافة/الضرائب:"
+
+#: templates/invoices/default-invoice.php:136
+msgid "INVOICE"
+msgstr "فاتورة"
+
+#: templates/invoices/default-invoice.php:137
+msgid "Invoice #:"
+msgstr "رقم الفاتورة:"
+
+#: templates/invoices/default-invoice.php:138
+msgid "Order #:"
+msgstr "رقم الطلب:"
+
+#: templates/invoices/default-invoice.php:139
+msgid "Date:"
+msgstr "التاريخ:"
+
+#: templates/invoices/default-invoice.php:149
+msgid "Bill To:"
+msgstr "فاتورة إلى:"
+
+#: templates/invoices/default-invoice.php:162
+msgid "Ship To:"
+msgstr "شحن إلى:"
+
+#: templates/invoices/default-invoice.php:174
+msgid "Item"
+msgstr "البند"
+
+#: templates/invoices/default-invoice.php:175
+msgid "Qty"
+msgstr "الكمية"
+
+#: templates/invoices/default-invoice.php:176
+msgid "Unit Price"
+msgstr "سعر الوحدة"
+
+#: templates/invoices/default-invoice.php:177
+msgid "Total"
+msgstr "الإجمالي"
+
+#: templates/invoices/default-invoice.php:213
+msgid "Subtotal:"
+msgstr "المجموع الفرعي:"
+
+#: templates/invoices/default-invoice.php:226
+msgid "Total:"
+msgstr "الإجمالي:"
+
+#: templates/invoices/default-invoice.php:234
+msgid "Customer Note:"
+msgstr "ملاحظة العميل:"
+
+#: templates/invoices/default-invoice.php:240
+msgid "Payment Method:"
+msgstr "طريقة الدفع:"
+
+#: templates/invoices/default-invoice.php:245
+#, php-format
+msgid "Thank you for your business! If you have any questions, please contact us at %s."
+msgstr "شكرًا لك على عملك! إذا كان لديك أي أسئلة، يرجى الاتصال بنا على %s."
