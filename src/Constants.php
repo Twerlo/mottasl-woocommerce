@@ -20,7 +20,7 @@ class Constants
      * Base URL for the Mottasl API.
      * @var string
      */
-    const MOTTASL_API_BASE_URL =  'https://6e8f-102-184-119-79.ngrok-free.app';
+    const MOTTASL_API_BASE_URL =  'https://f414-102-184-121-206.ngrok-free.app';
 
     /**
      * The Path that will be used to send the app events such as installed, uninstalled, and deleted.
@@ -42,7 +42,7 @@ class Constants
      * Webhook topic for update confirmation.
      * @var string
      */
-    const EVENT_TOPIC_UPDATED = 'settings.updated';
+    const EVENT_TOPIC_SETTINGS_UPDATED = 'settings.updated';
 
     /**
      * Webhook topic for uninstallation confirmation.

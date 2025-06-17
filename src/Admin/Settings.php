@@ -14,6 +14,7 @@ namespace Mottasl\WooCommerce\Admin;
 use Mottasl\WooCommerce\Constants;
 use Mottasl\WooCommerce\Utils\Helper;
 use Mottasl\WooCommerce\Integrations\MottaslAPI;
+use Mottasl\WooCommerce\Admin\MottaslEventsPayload;
 
 defined('ABSPATH') || exit;
 
@@ -388,16 +389,19 @@ class Settings
         $id = $args['id'];
         $value = $this->settings[$id] ?? '';
 ?>
-        <div>
-            <input type="text" id="<?php echo esc_attr($id); ?>" name="<?php echo esc_attr($this->option_name . '[' . $id . ']'); ?>" value="<?php echo esc_attr($value); ?>" class="regular-text mottasl-media-url" />
-            <button type="button" class="button mottasl-upload-media-button"><?php esc_html_e('Upload/Select Image', 'mottasl-woocommerce'); ?></button>
-        </div>
-        <div class="mottasl-media-preview" style="margin-top:10px;">
-            <?php if ($value) : ?>
-                <img src="<?php echo esc_url($value); ?>" style="max-width:200px; height:auto;" />
-            <?php endif; ?>
-        </div>
-        <?php
+<div>
+    <input type="text" id="<?php echo esc_attr($id); ?>"
+        name="<?php echo esc_attr($this->option_name . '[' . $id . ']'); ?>" value="<?php echo esc_attr($value); ?>"
+        class="regular-text mottasl-media-url" />
+    <button type="button"
+        class="button mottasl-upload-media-button"><?php esc_html_e('Upload/Select Image', 'mottasl-woocommerce'); ?></button>
+</div>
+<div class="mottasl-media-preview" style="margin-top:10px;">
+    <?php if ($value) : ?>
+    <img src="<?php echo esc_url($value); ?>" style="max-width:200px; height:auto;" />
+    <?php endif; ?>
+</div>
+<?php
         if (! empty($args['desc'])) {
             echo '<p class="description">' . esc_html($args['desc']) . '</p>';
         }
@@ -423,18 +427,18 @@ class Settings
         // Ensure WooCommerce Enhanced Select JS is loaded if not already by WC on this page
         // Usually it is on WooCommerce settings pages. For top-level, you might need to enqueue 'wc-enhanced-select'.
         ?>
-        <script type="text/javascript">
-            jQuery(function($) {
-                if (typeof wc_enhanced_select_params !== 'undefined') {
-                    $('#<?php echo esc_attr($id); ?>').select2({
-                        // minimumResultsForSearch: Infinity // if you don't want search
-                    });
-                } else if ($.fn.select2) {
-                    $('#<?php echo esc_attr($id); ?>').select2();
-                }
-            });
-        </script>
-        <?php
+<script type="text/javascript">
+jQuery(function($) {
+    if (typeof wc_enhanced_select_params !== 'undefined') {
+        $('#<?php echo esc_attr($id); ?>').select2({
+            // minimumResultsForSearch: Infinity // if you don't want search
+        });
+    } else if ($.fn.select2) {
+        $('#<?php echo esc_attr($id); ?>').select2();
+    }
+});
+</script>
+<?php
     }
 
 
@@ -467,16 +471,16 @@ class Settings
         } else {
             // Fallback basic structure if template is missing
         ?>
-            <div class="wrap mottasl-settings-wrap">
-                <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-                <form method="post" action="options.php">
-                    <?php
+<div class="wrap mottasl-settings-wrap">
+    <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+    <form method="post" action="options.php">
+        <?php
                     settings_fields($this->option_group);
                     do_settings_sections($this->page_slug);
                     submit_button(__('Save Settings', 'mottasl-woocommerce'));
                     ?>
-                </form>
-            </div>
+    </form>
+</div>
 <?php
         }
     }
@@ -518,16 +522,7 @@ class Settings
                 error_log('Mottasl Settings Update Error: Could not retrieve store URL.');
                 return;
             }
-
-            $api_handler = new MottaslAPI();
-            $payload = [
-                'event_type'    => Constants::EVENT_TOPIC_UPDATED, // Indicate this is an update
-                'store_url'     => $store_url,
-                'plugin_version' => MOTTASL_WC_VERSION,
-                'wc_version'    => WC()->version ?? null,
-                'php_version'   => phpversion(),
-                'wp_version'    => get_bloginfo('version'),
-                'updated_at'    => current_time('mysql', true),
+            $data = [
                 'mottasl_business_id' => $value['mottasl_business_id'] ?? null,
                 'woocommerce_api_keys' => [ // Send the keys provided by the user
                     'consumer_key'    => $value['mottasl_wc_consumer_key'] ?? null,
@@ -545,11 +540,10 @@ class Settings
                     'enable_order_sync' => $value['enable_order_sync'] ?? 'no',
                     'enable_abandoned_cart' => $value['enable_abandoned_cart'] ?? 'no',
                 ]
-            ];
+                ];
 
-            // Use the same endpoint topic or a dedicated "update_settings" topic if Mottasl has one.
-            // Using installation.confirmation for now, but Mottasl might prefer a different topic for updates.
-            $api_handler->send_event(Constants::MOTTASL_EVENT_PATH_APP, $payload);
+            $api = new MottaslAPI();
+            $api->send_event(Constants::MOTTASL_EVENT_PATH_APP,Constants::EVENT_TOPIC_SETTINGS_UPDATED, $data);
 
             // Add an admin notice for feedback
             add_settings_error(

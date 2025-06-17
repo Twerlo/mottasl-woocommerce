@@ -14,7 +14,7 @@
 namespace Mottasl\WooCommerce\Core;
 
 use Mottasl\WooCommerce\Integrations\MottaslAPI;
-use Mottasl\WooCommerce\Integrations\MottaslEventsPayload; // Assuming this is used
+use Mottasl\WooCommerce\Integrations\MottaslEventsPayload;
 use Mottasl\WooCommerce\Utils\Helper;
 use Mottasl\WooCommerce\Constants;
 use Mottasl\WooCommerce\Events\AbandonedCartHandler; // For DEFAULT_ABANDONMENT_TIMEOUT
@@ -74,23 +74,18 @@ class Activator
             error_log('Mottasl Activation Error: Could not retrieve store URL.');
             return;
         }
+        $data = [
+            'contact' => [
+                'email' => bloginfo('admin_email'), // Use the admin email as contact
+                'name'  => '',             
+            ],
+        ];
 
-        $payload_obj = new MottaslEventsPayload(
-            Constants::EVENT_TOPIC_INSTALLED, // Use the constant for the event topic
-            [
-                'event_type'        => Constants::EVENT_TOPIC_INSTALLED
-                // the store data will be automatically included in the payload
-                // No API keys are sent at this initial stage.
-                // User will configure them in plugin settings.
-            ]
-        );
-        $payload = $payload_obj->payload();
-
-        $api_handler = new MottaslAPI();
-        $api_handler->send_event(Constants::MOTTASL_EVENT_PATH_APP, $payload);
+        $api = new MottaslAPI();
+        $api->send_event(Constants::MOTTASL_EVENT_PATH_APP, Constants::EVENT_TOPIC_INSTALLED, $data);
     }
 
-    /**
+    /** 
      * Sets up default plugin options if they don't exist.
      *
      * @since 1.0.0
@@ -166,9 +161,10 @@ class Activator
 add_action('admin_notices', function () {
     if (get_transient('mottasl_wc_activation_error_notice')) {
 ?>
-        <div class="notice notice-error is-dismissible">
-            <p><?php esc_html_e('Mottasl for WooCommerce plugin requires WooCommerce to be active and was automatically deactivated.', 'mottasl-woocommerce'); ?></p>
-        </div>
+<div class="notice notice-error is-dismissible">
+    <p><?php esc_html_e('Mottasl for WooCommerce plugin requires WooCommerce to be active and was automatically deactivated.', 'mottasl-woocommerce'); ?>
+    </p>
+</div>
 <?php
         delete_transient('mottasl_wc_activation_error_notice');
     }

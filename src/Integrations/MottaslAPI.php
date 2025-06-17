@@ -26,7 +26,7 @@ class MottaslAPI {
      * @param string $store_url     The WooCommerce store URL.
      * @return bool|array True on success (or API response body), false or WP_Error on failure.
      */
-    public function send_event( string $event_path, array $payload ) {
+    public function send_event( string $event_path, string $topic, ?array $data = [] ) {
         if ( empty( $event_path ) ) {
             error_log( 'Mottasl API Error: Webhook event path is missing.' );
             return false;
@@ -52,6 +52,12 @@ class MottaslAPI {
             error_log( 'Mottasl API Error: Mottasl Business ID is not configured.' );
             return false;
         }
+
+        $payload_obj = new MottaslEventsPayload(
+            $topic, // Use the constant for the event topic
+            $data ?: [] // Use provided data or empty array if none
+        );
+        $payload = $payload_obj->payload();
 
         $args = [
             'method'      => 'POST',

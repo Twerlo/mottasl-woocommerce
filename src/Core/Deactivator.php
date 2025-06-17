@@ -68,6 +68,6 @@ class Deactivator {
 
         $payloadObj = new MottaslEventsPayload(Constants::EVENT_TOPIC_UNINSTALLED);
         $payload = $payloadObj->payload();
-        $api_handler->send_event( Constants::MOTTASL_EVENT_PATH_APP, $payload, $store_url );
+        $api_handler->send_event( Constants::MOTTASL_EVENT_PATH_APP, Constants::EVENT_TOPIC_UNINSTALLED );
     }
 }

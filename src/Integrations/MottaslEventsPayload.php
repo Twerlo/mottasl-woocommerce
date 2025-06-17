@@ -63,6 +63,9 @@ class MottaslEventsPayload implements EventPayloadInterface {
             'wc_version'     => function_exists('WC') ? WC()->version : null, // Get WooCommerce version if available
             'php_version'    => phpversion(),
             'wp_version'     => function_exists('get_bloginfo') ? get_bloginfo('version') : '',
+            'store_name'     => function_exists('get_bloginfo') ? get_bloginfo('name') : '',
+            'store_id'       => function_exists('get_current_blog_id') ? get_current_blog_id() : 0,
+            
             /**
              * 'site_url'  => The URL of the WordPress site, retrieved using the get_site_url() function if available.
              *                This typically refers to the main URL of the WordPress installation.
