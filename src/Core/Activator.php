@@ -1,4 +1,7 @@
 <?php
+
+namespace Mottasl\Core;
+
 use Firebase\JWT\JWT;
 
 /**
@@ -22,8 +25,40 @@ use Firebase\JWT\JWT;
  * @author     Twerlo <support@twerlo.com>
  */
 
-class Mottasl_Woocommerce_Activator
+class Activator
 {
+	function __construct()
+	{
+		// Prevent direct access to the class
+		if (!defined('ABSPATH')) {
+			exit;
+		}
+		error_log('Activating Mottsl Plugin :)');
+		// Check if WooCommerce is active
+		if (!class_exists('WooCommerce')) {
+			add_action('admin_notices', function () {
+?>
+				<div class="notice notice-error">
+					<p>
+						<?php
+						echo wp_kses_post(
+							sprintf(
+								/* translators: %s: Mottasl for WooCommerce */
+								__('<strong>%s</strong> requires WooCommerce to be installed and activated.', 'mottasl-woocommerce'),
+								esc_html__('Mottasl for WooCommerce', 'mottasl-woocommerce')
+							)
+						);
+						?>
+					</p>
+				</div>
+<?php
+			});
+			return;
+		}
+		add_action('activated_plugin', array($this, 'activate'));
+		add_action('admin_init', array($this, 'woocommerce_cart_tracking_installation'));
+		error_log('Mottasl Activator initialized');
+	}
 	function generate_jwt_token($user_id, $secret_key)
 	{
 		$payload = [
@@ -66,9 +101,9 @@ class Mottasl_Woocommerce_Activator
 			notification_sent boolean  DEFAULT false,
             customer_id bigint(20) DEFAULT 0,
             ip_address varchar(20),
-			 customer_data JSON NOT NULL DEFAULT ('{}'),  
-            products JSON NOT NULL DEFAULT ('[]'), 
-		
+			 customer_data JSON DEFAULT NULL,
+            products JSON DEFAULT NULL,
+
 
             PRIMARY KEY  (id)
         ) $charset_collate;";
@@ -93,31 +128,25 @@ class Mottasl_Woocommerce_Activator
 		// 3 for order created
 		// 4 for order status update
 		dbDelta($sql_cart);
-
-
 	}
 	public static function activate()
 	{
-		var_dump('activating plugin');
-		if (!class_exists('WooCommerce'))
-		{
+		error_log("Activate called staticly");
+		if (!class_exists('WooCommerce')) {
+			error_log('Woocommerce Not found, Deactivating Mottasl');
 			deactivate_plugins(plugin_basename(__FILE__));
 			wp_die('This plugin requires WooCommerce to function properly. Please install WooCommerce first.');
 		}
 
+		$consumerKey = get_option('consumer_secret') ?? '';
+		$consumerSecret = get_option('consumer_secret') ?? '';
 
-		if (get_option('consumer_key') == '' || get_option('consumer_secret') == '')
-		{
+		if (!$consumerKey || !$consumerSecret) {
 			update_option('activation_note', 'not valid');
-
-
-		} else
-		{
-			Mottasl_Woocommerce_Activator::register_webhooks();
-			Mottasl_Woocommerce_Activator::woocommerce_cart_tracking_installation();
+		} else {
+			self::register_webhooks();
+			self::woocommerce_cart_tracking_installation();
 		}
-
-
 	}
 
 	// if not there request new merchant install from hubs
@@ -135,19 +164,19 @@ class Mottasl_Woocommerce_Activator
 
 		// not required though, it is just for webhook secret
 		$consumer_key = get_option('consumer_key');
-		$consumer_secret = get_option('consumer_secret');
-		;
+		$consumer_secret = get_option('consumer_secret');;
 		// Set the webhook status to 'active'
 		$webhook_status = 'active';
 
 		// Set the webhook endpoint URL
 
-		foreach ($webhooks_topics_to_register as $webhook_topic)
-		{
-			$webhook_url = 'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/' . $webhook_topic . '?store_url=' . get_bloginfo('url');
+		foreach ($webhooks_topics_to_register as $webhook_topic) {
+			$api = new MottaslApi();
+			$webhook_url = $api->getApiUrl('/integration/events/woocommerce/' . $webhook_topic);
+			error_log('Webhook URL: ' . $webhook_url);
 			// Create the webhook data
 			$webhook_data = array(
-				'name' => 'Hub Event: ' . $webhook_topic,
+				'name' => 'Mottasl: ' . $webhook_topic,
 				'topic' => $webhook_topic,
 				'delivery_url' => $webhook_url,
 				'status' => $webhook_status,
@@ -157,7 +186,7 @@ class Mottasl_Woocommerce_Activator
 			);
 
 			// Create a new WC_Webhook instance
-			$webhook = new WC_Webhook();
+			$webhook = new \WC_Webhook();
 
 			// Set the webhook data
 			$webhook->set_props($webhook_data);

@@ -1,12 +1,11 @@
 <?php
 
+namespace Mottasl\Core;
 
-
-require_once plugin_dir_path(dirname(__FILE__)) . 'includes/admin/setup.php';
 use Mottasl\Admin\Setup;
 
 
-class Mottasl_Woocommerce
+class MottaslWoocommerce
 {
 
 	/**
@@ -15,7 +14,7 @@ class Mottasl_Woocommerce
 	 *
 	 * @since    0.1.0
 	 * @access   protected
-	 * @var      MOTTASL_Woocommerce_Loader    $loader    Maintains and registers all hooks for the plugin.
+	 * @var      MottaslLoader    $loader    Maintains and registers all hooks for the plugin.
 	 */
 	protected $loader;
 
@@ -48,12 +47,15 @@ class Mottasl_Woocommerce
 	 */
 	public function __construct()
 	{
-			if ( is_admin() ) {
-				new Setup();
-			}
+		if (is_admin()) {
+			// Load the admin setup class
+			$admin = new Setup();
+			$admin->mottasl_init();
+		}
+		$this->loader = new MottaslLoader();
 
-		if (defined('MOTTASL__WOOCOMMERCE_VERSION')) {
-			$this->version = MOTTASL__WOOCOMMERCE_VERSION;
+		if (defined('MOTTASL_WC_VERSION')) {
+			$this->version = MOTTASL_WC_VERSION;
 		} else {
 			$this->version = '0.1.0';
 		}
@@ -68,7 +70,7 @@ class Mottasl_Woocommerce
 	 *
 	 * Include the following files that make up the plugin:
 	 *
-	 * - MOTTASL_Woocommerce_Loader. Orchestrates the hooks of the plugin.
+	 * - MottaslLoader. Orchestrates the hooks of the plugin.
 	 * - Mottasl_Woocommerce_i18n. Defines internationalization functionality.
 	 * - Mottasl_Woocommerce_Admin. Defines all hooks for the admin area.
 	 * - Mottasl_Woocommerce_Public. Defines all hooks for the public side of the site.
@@ -79,28 +81,7 @@ class Mottasl_Woocommerce
 	 * @since    0.1.0
 	 * @access   private
 	 */
-	private function load_dependencies()
-	{
-
-		/**
-		 * The class responsible for orchestrating the actions and filters of the
-		 * core plugin.
-		 */
-		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-mottasl-woocommerce-loader.php';
-
-		/**
-		 * The class responsible for defining internationalization functionality
-		 * of the plugin.
-		 */
-		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-mottasl-woocommerce-i18n.php';
-
-		/**
-		 * The class responsible for defining all actions that occur in the admin area.
-		 */
-		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/admin/setup.php';
-
-		$this->loader = new Mottasl_Woocommerce_Loader();
-	}
+	private function load_dependencies() {}
 
 	/**
 	 * Define the locale for this plugin for internationalization.
@@ -114,9 +95,15 @@ class Mottasl_Woocommerce
 	private function set_locale()
 	{
 
-		$plugin_i18n = new Mottasl_Woocommerce_i18n();
 
-		$this->loader->add_action('plugins_loaded', $plugin_i18n, 'load_plugin_textdomain');
+		$lang = new MottaslI18n();
+
+		// add loader action to load the plugin text domain
+		$this->loader->add_action(
+			'plugins_loaded',
+			$lang,
+			'load_plugin_textdomain'
+		);
 	}
 
 	/**
@@ -145,7 +132,7 @@ class Mottasl_Woocommerce
 	 * The reference to the class that orchestrates the hooks with the plugin.
 	 *
 	 * @since     0.1.0
-	 * @return    MOTTASL_Woocommerce_Loader    Orchestrates the hooks of the plugin.
+	 * @return    MottaslLoader    Orchestrates the hooks of the plugin.
 	 */
 	public function get_loader()
 	{

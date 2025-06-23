@@ -35,11 +35,11 @@ msgid "https://woo.com"
 msgstr ""
 
 #: build/index.js:1
-#: src/index.js:13
+#: assets/index.js:13
 msgid "My Example Extension"
 msgstr ""
 
 #: build/index.js:1
-#: src/index.js:20
+#: assets/index.js:20
 msgid "My Example Page"
 msgstr ""

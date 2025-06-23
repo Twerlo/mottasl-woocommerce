@@ -12,7 +12,7 @@
 	"description": "WooCommerce plugin",
 	"autoload": {
 		"psr-4": {
-			"Mottasl\\": "includes/"
+			"Mottasl\\": "src/"
 		}
 	},
 	"require-dev": {

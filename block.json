@@ -6,7 +6,7 @@
 	"title": "Mottasl",
 	"category": "widgets",
 	"textdomain": "mottasl",
-	"editorScript": "file:./build/index.js",
-	"editorStyle": "file:./build/index.css",
-	"style": "file:./build/style-index.css"
+	"editorScript": "file:./assets/index.js",
+	"editorStyle": "file:./assets/index.css",
+	"style": "file:./assets/style-index.css"
 }

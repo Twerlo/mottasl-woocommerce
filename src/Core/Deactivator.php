@@ -1,5 +1,7 @@
 <?php
 
+namespace Mottasl\Core;
+
 /**
  * Fired during plugin deactivation
  *
@@ -20,7 +22,7 @@
  * @subpackage Mottasl_Woocommerce/includes
  * @author     Twerlo <support@twerlo.com>
  */
-class Mottasl_Woocommerce_Deactivator
+class Deactivator
 {
 
 	/**
@@ -30,17 +32,14 @@ class Mottasl_Woocommerce_Deactivator
 	 */
 	public static function deactivate()
 	{
-		if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))))
-		{
-			Mottasl_Woocommerce_Deactivator::unregister_webhooks();
-
+		if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins')))) {
+			self::unregister_webhooks();
 		}
 		//COMMON WOOCOMMERCE METHOD
-		Mottasl_Woocommerce_Deactivator::wtrackt_drop_table();
-		Mottasl_Woocommerce_Deactivator::uninstall_merchant();
+		self::wtrackt_drop_table();
+		self::uninstall_merchant();
 		$timestamp = wp_next_scheduled('my_function_hook');
-		if ($timestamp)
-		{
+		if ($timestamp) {
 			wp_unschedule_event($timestamp, 'my_function_hook');
 		}
 	}
@@ -78,15 +77,13 @@ class Mottasl_Woocommerce_Deactivator
 		$response = wp_remote_post($request_url, $args);
 
 		// Check for errors
-		if (is_wp_error($response) || 200 != wp_remote_retrieve_response_code($response))
-		{
+		if (is_wp_error($response) || 200 != wp_remote_retrieve_response_code($response)) {
 
 
 			update_option('notice_error', json_decode(wp_remote_retrieve_body($response))->error);
 
 			//echo 'Error: ' . $response;
-		} else
-		{
+		} else {
 			update_option('notice_error', '');
 
 			// Success, delete integration_id
@@ -101,25 +98,20 @@ class Mottasl_Woocommerce_Deactivator
 		$data_store = \WC_Data_Store::load('webhook');
 		$webhooks = $data_store->search_webhooks(['paginate' => false]);
 
-		if ($webhooks && is_array($webhooks))
-		{
-			foreach ($webhooks as $webhook_id)
-			{
+		if ($webhooks && is_array($webhooks)) {
+			foreach ($webhooks as $webhook_id) {
 				// Load the webhook by ID
 				$webhook = new \WC_Webhook($webhook_id);
 				$url = $webhook->get_delivery_url();
 
 				// Check if the webhook URL starts with the target URL
-				if (strncmp($url, $target_url, strlen($target_url)) === 0)
-				{
+				if (strncmp($url, $target_url, strlen($target_url)) === 0) {
 					$webhook->delete(true);
 					echo "Webhook with ID $webhook_id deleted successfully.\n";
 				}
 			}
-		} else
-		{
+		} else {
 			echo 'No webhooks found.';
 		}
 	}
 }
-     

@@ -32,7 +32,6 @@ npm-debug.log
 *.zip
 
 # Built packages
-build/
 build-module/
 build-style/
 build-types/

@@ -1,5 +1,7 @@
 <?php
 
+namespace Mottasl\Core;
+
 /**
  * Define the internationalization functionality
  *
@@ -24,7 +26,8 @@
  * @subpackage Mottasl_Woocommerce/includes
  * @author     Twerlo <support@twerlo.com>
  */
-class Mottasl_Woocommerce_i18n {
+class MottaslI18n
+{
 
 
 	/**
@@ -32,16 +35,13 @@ class Mottasl_Woocommerce_i18n {
 	 *
 	 * @since    0.1.0
 	 */
-	public function load_plugin_textdomain() {
+	public function load_plugin_textdomain()
+	{
 
 		load_plugin_textdomain(
 			'mottasl-woocommerce',
 			false,
-			dirname( dirname( plugin_basename( __FILE__ ) ) ) . '/languages/'
+			dirname(dirname(plugin_basename(__FILE__))) . '/languages/'
 		);
-
 	}
-
-
-
 }
