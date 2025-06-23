@@ -53,9 +53,9 @@ class Constants
 	/**
 	 * Api Base URL.
 	 */
-	const API_BASE_URL = 'https://dd60-102-184-44-164.ngrok-free.app'; //'https://hub.api.mottasl.com';
+	const API_BASE_URL = 'https://hub.api.mottasl.ai';
 
-	const Mottasl_APP_BASE_URL = 'http://localhost:3001'; // 'https://app.mottasl.com';
+	const Mottasl_APP_BASE_URL = 'https://app.mottasl.ai';
 
 	/**
 	 * API Path
