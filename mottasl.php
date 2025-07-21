@@ -23,13 +23,15 @@
  * Requires PHP:      7.4
  * Requires at least: 5.6
  * WC requires at least: 6.0
- * WC tested up to:     [Enter Latest WooCommerce Version You Tested With, e.g., 8.3]
+ * WC tested up to:     8.5
+ * Woo: 12345:abcdef1234567890abcdef1234567890
  */
 
 // If this file is called directly, abort.
 if (! defined('WPINC')) {
 	die;
 }
+
 // Define plugin constants
 define('MOTTASL_WC_VERSION', '1.0.0');
 define('MOTTASL_WC_PLUGIN_FILE', __FILE__);
@@ -39,10 +41,46 @@ define('MOTTASL_WC_BASENAME', plugin_basename(MOTTASL_WC_PLUGIN_FILE)); // Cruci
 define('MOTTASL_WC_TEXT_DOMAIN', 'mottasl-woocommerce');
 define('MOTTASL_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
-// Check for Composer's autoloader
-if (! file_exists(MOTTASL_WC_PLUGIN_PATH . 'vendor/autoload.php')) {
+// Improved autoloader handling to prevent conflicts with WooCommerce
+$jetpack_autoload_file = MOTTASL_WC_PLUGIN_PATH . 'vendor/autoload_packages.php';
+$fallback_autoload_file = MOTTASL_WC_PLUGIN_PATH . 'vendor/autoload.php';
+
+// Try to load Jetpack autoloader first (WordPress best practice)
+if (file_exists($jetpack_autoload_file)) {
+	require_once $jetpack_autoload_file;
+} elseif (file_exists($fallback_autoload_file)) {
+	// Fallback to standard Composer autoloader
+	try {
+		require_once $fallback_autoload_file;
+	} catch (Exception $e) {
+		add_action('admin_notices', function () use ($e) {
+			?>
+			<div class="notice notice-error">
+				<p>
+					<strong><?php esc_html_e('Mottasl for WooCommerce', 'mottasl-woocommerce'); ?></strong>:
+					<?php
+					echo wp_kses_post(
+						sprintf(
+							__('Failed to load dependencies: %s', 'mottasl-woocommerce'),
+							esc_html($e->getMessage())
+						)
+					);
+					?>
+				</p>
+			</div>
+			<?php
+		});
+
+		add_action('admin_init', function () {
+			if (is_plugin_active(MOTTASL_WC_BASENAME)) {
+				deactivate_plugins(MOTTASL_WC_BASENAME);
+			}
+		});
+		return;
+	}
+} else {
 	add_action('admin_notices', function () {
-?>
+		?>
 		<div class="notice notice-error">
 			<p>
 				<?php
@@ -56,7 +94,7 @@ if (! file_exists(MOTTASL_WC_PLUGIN_PATH . 'vendor/autoload.php')) {
 				?>
 			</p>
 		</div>
-<?php
+		<?php
 	});
 
 	add_action('admin_init', function () {
@@ -65,12 +103,7 @@ if (! file_exists(MOTTASL_WC_PLUGIN_PATH . 'vendor/autoload.php')) {
 		}
 	});
 	return;
-} else {
-	// Ensure Composer's autoloader is included
-	require_once MOTTASL_WC_PLUGIN_PATH . 'vendor/autoload.php';
 }
-
-
 
 // Manually require the MottaslWoocommerce class if autoload not working
 if (!class_exists('Mottasl\Core\MottaslWoocommerce')) {
@@ -80,9 +113,13 @@ if (!class_exists('Mottasl\Core\MottaslWoocommerce')) {
 	}
 }
 
-use Mottasl\Admin\Setup;
-//use Mottasl\Core\CartTracking;
-//use Mottasl\Core\CartCron;
+// Declare WooCommerce HPOS compatibility
+add_action('before_woocommerce_init', function () {
+	if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+	}
+});
+
 use Mottasl\Utils\Helpers;
 use Firebase\JWT\JWT;
 

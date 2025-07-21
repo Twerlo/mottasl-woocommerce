@@ -70,64 +70,61 @@ class Activator
 
 	public static function woocommerce_cart_tracking_installation()
 	{
-
 		global $wpdb;
-		$table_name = $wpdb->prefix . 'cart_tracking_wc';
-
 		$charset_collate = $wpdb->get_charset_collate();
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
+		// Create cart_tracking_wc table
+		$table_name = $wpdb->prefix . 'cart_tracking_wc';
 		$sql = "CREATE TABLE $table_name (
-		id bigint(20) NOT NULL AUTO_INCREMENT,
-		time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
-		product_id bigint(20) NOT NULL,
-		quantity double NOT NULL DEFAULT 0,
-		cart_number bigint(20) NOT NULL,
-        removed boolean NOT NULL DEFAULT false,
-		PRIMARY KEY  (id)
-	) $charset_collate;";
-
+			id bigint(20) NOT NULL AUTO_INCREMENT,
+			time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+			product_id bigint(20) NOT NULL,
+			quantity double NOT NULL DEFAULT 0,
+			cart_number bigint(20) NOT NULL,
+			removed boolean NOT NULL DEFAULT false,
+			PRIMARY KEY (id)
+		) $charset_collate;";
 		dbDelta($sql);
 
+		// Create cart_tracking_wc_cart table
 		$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
 		$sql_cart = "CREATE TABLE $table_name (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            creation_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            update_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            cart_total double DEFAULT 0,
-			cart_status varchar(20)  DEFAULT 'new',
-			store_url varchar(300)  DEFAULT '',
-            order_created bigint(20)  DEFAULT 0,
-			notification_sent boolean  DEFAULT false,
-            customer_id bigint(20) DEFAULT 0,
-            ip_address varchar(20),
-			 customer_data JSON DEFAULT NULL,
-            products JSON DEFAULT NULL,
-
-
-            PRIMARY KEY  (id)
-        ) $charset_collate;";
-
+			id bigint(20) NOT NULL AUTO_INCREMENT,
+			creation_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			update_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+			cart_total double DEFAULT 0,
+			cart_status varchar(20) DEFAULT 'new',
+			store_url varchar(300) DEFAULT '',
+			order_created bigint(20) DEFAULT 0,
+			notification_sent boolean DEFAULT false,
+			customer_id bigint(20) DEFAULT 0,
+			ip_address varchar(20) DEFAULT NULL,
+			customer_data TEXT DEFAULT NULL,
+			products TEXT DEFAULT NULL,
+			PRIMARY KEY (id)
+		) $charset_collate;";
 		dbDelta($sql_cart);
 
+		// Create cart_tracking_wc_logs table
 		$table_name = $wpdb->prefix . 'cart_tracking_wc_logs';
-		$sql_cart = "CREATE TABLE $table_name (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            op_time datetime DEFAULT '0000-00-00 00:00:00' ,
-            op_type bigint(20)  DEFAULT 0,
-            customer_id bigint(20)  DEFAULT 0,
-            product_id bigint(20) NOT NULL,
-			store_url varchar(100)  DEFAULT '',
-		quantity double  DEFAULT 0,
-		cart_number bigint(20) NOT NULL,
-        op_value varchar(100) DEFAULT '',
-            PRIMARY KEY  (id)
-        ) $charset_collate;";
+		$sql_logs = "CREATE TABLE $table_name (
+			id bigint(20) NOT NULL AUTO_INCREMENT,
+			op_time datetime DEFAULT '0000-00-00 00:00:00',
+			op_type bigint(20) DEFAULT 0,
+			customer_id bigint(20) DEFAULT 0,
+			product_id bigint(20) NOT NULL,
+			store_url varchar(100) DEFAULT '',
+			quantity double DEFAULT 0,
+			cart_number bigint(20) NOT NULL,
+			op_value varchar(100) DEFAULT '',
+			PRIMARY KEY (id)
+		) $charset_collate;";
 		// op type 1 for add new product
 		// 2 for removed product
 		// 3 for order created
 		// 4 for order status update
-		dbDelta($sql_cart);
+		dbDelta($sql_logs);
 	}
 	public static function activate()
 	{

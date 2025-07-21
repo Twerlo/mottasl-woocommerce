@@ -2,6 +2,8 @@
 
 namespace Mottasl\Core;
 
+use Mottasl\Utils\Constants;
+
 /**
  * Fired during plugin deactivation
  *
@@ -63,29 +65,18 @@ class Deactivator
 			'event_name' => 'uninstall',
 		);
 
-		// Set up the request arguments
-		$args = array(
-			'body' => json_encode($store_data),
-			'headers' => array(
-				'Content-Type' => 'application/json',
-				'X-Business-Id' => get_option('business_id')
-			),
-			'timeout' => 15,
-		);
+		// Initialize the MottaslApi
+		$api = new MottaslApi();
 
-		$request_url = 'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/app.event';
-		$response = wp_remote_post($request_url, $args);
+		// Send the uninstall event
+		$response = $api->post('app.event', $store_data);
 
 		// Check for errors
-		if (is_wp_error($response) || 200 != wp_remote_retrieve_response_code($response)) {
-
-
-			update_option('notice_error', json_decode(wp_remote_retrieve_body($response))->error);
-
-			//echo 'Error: ' . $response;
+		if (isset($response['error'])) {
+			update_option('notice_error', $response['error']);
+			error_log('Mottasl API Error during uninstall: ' . $response['error']);
 		} else {
 			update_option('notice_error', '');
-
 			// Success, delete integration_id
 			update_option('business_id', '');
 		}
@@ -93,7 +84,7 @@ class Deactivator
 
 	private static function unregister_webhooks()
 	{
-		$target_url = 'https://hub.api.mottasl.ai/api/v1/integration/events/woocommerce/';
+		$target_url = Constants::WOOCOMMERCE_API_BASE_URL . '/';
 
 		$data_store = \WC_Data_Store::load('webhook');
 		$webhooks = $data_store->search_webhooks(['paginate' => false]);

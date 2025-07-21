@@ -51,14 +51,37 @@ class Constants
 	const SUPPORT_URL = 'https://mottasl.com/support';
 
 	/**
-	 * Api Base URL.
+	 * Environment-specific API base URL.
+	 * Can be easily changed for different environments (dev, staging, prod)
+	 *
+	 * @var string
 	 */
-	const API_BASE_URL = 'https://hub.api.mottasl.ai';
-
-	const Mottasl_APP_BASE_URL = 'https://app.mottasl.ai';
+	const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
 
 	/**
-	 * API Path
+	 * Mottasl application base URL for redirects
+	 *
+	 * @var string
+	 */
+	const MOTTASL_APP_BASE_URL = 'https://app.mottasl.ai';
+
+	/**
+	 * Complete API endpoint URL for WooCommerce integration
+	 * Combines base URL with the full WooCommerce integration path
+	 *
+	 * @var string
+	 */
+	const WOOCOMMERCE_API_BASE_URL = self::MOTTASL_API_BASE_URL . '/api/v1/integration/events/woocommerce';
+
+	/**
+	 * @deprecated Use MOTTASL_API_BASE_URL instead
+	 * Kept for backward compatibility
+	 */
+	const API_BASE_URL = self::MOTTASL_API_BASE_URL;
+
+	/**
+	 * @deprecated Use WOOCOMMERCE_API_BASE_URL instead
+	 * Kept for backward compatibility
 	 */
 	const API_PATH = 'api/v1/integration/events/woocommerce';
 }

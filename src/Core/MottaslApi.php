@@ -18,7 +18,8 @@ class MottaslApi
 	 */
 	public function __construct()
 	{
-		$this->api_base_url = rtrim(Constants::API_BASE_URL, '/');
+		// Use the new WooCommerce-specific API base URL
+		$this->api_base_url = rtrim(Constants::WOOCOMMERCE_API_BASE_URL, '/');
 	}
 
 	/**
@@ -52,7 +53,9 @@ class MottaslApi
 	 */
 	public function getApiUrl($endpoint)
 	{
-		return $this->api_base_url . '/' . Constants::API_PATH . '/' . ltrim($endpoint, '/');
+		// Since WOOCOMMERCE_API_BASE_URL already includes the full path,
+		// we just need to append the specific endpoint
+		return $this->api_base_url . '/' . ltrim($endpoint, '/');
 	}
 
 	/**
