@@ -107,22 +107,29 @@ class Setup
 			function handleButtonClick(event) {
 				if (event.target.getAttribute('id') === 'connect') {
 					// Validate required fields before connecting
-					const consumerKey = document.getElementById('consumer_key') ? document.getElementById('consumer_key').value.trim() : '';
-					const consumerSecret = document.getElementById('consumer_secret') ? document.getElementById('consumer_secret').value.trim() : '';
-					const businessId = document.getElementById('mottasl_business_id') ? document.getElementById('mottasl_business_id').value.trim() : '';
+					const consumerKey = document.getElementById('consumer_key') ? document.getElementById('consumer_key').value
+						.trim() : '';
+					const consumerSecret = document.getElementById('consumer_secret') ? document.getElementById('consumer_secret')
+						.value.trim() : '';
+					const businessId = document.getElementById('mottasl_business_id') ? document.getElementById(
+						'mottasl_business_id').value.trim() : '';
 
 					// Run validation to show errors
 					validateAllFields();
 
 					if (!consumerKey || !consumerSecret || !businessId) {
-						alert('Please fill in all required fields: Consumer Key, Consumer Secret, and Business ID before connecting.');
+						alert(
+							'Please fill in all required fields: Consumer Key, Consumer Secret, and Business ID before connecting.'
+						);
 						return;
 					}
 
 					// Validate Business ID format (must be a valid UUID)
 					const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 					if (!uuidRegex.test(businessId)) {
-						alert('Please enter a valid Business ID. It should be in UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000).');
+						alert(
+							'Please enter a valid Business ID. It should be in UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000).'
+						);
 						return;
 					}
 
@@ -172,7 +179,8 @@ class Setup
 								}, 1000);
 							} else {
 								// Connection failed
-								alert('Connection failed: ' + (data.data ? data.data : 'Please check your credentials and try again.'));
+								alert('Connection failed: ' + (data.data ? data.data :
+									'Please check your credentials and try again.'));
 							}
 						}).catch(error => {
 							event.target.disabled = false;
@@ -206,10 +214,12 @@ class Setup
 								isValid = false;
 								errorMessage = 'Business ID is required';
 							} else {
-								const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+								const uuidRegex =
+									/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 								if (!uuidRegex.test(value)) {
 									isValid = false;
-									errorMessage = 'Please enter a valid UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000)';
+									errorMessage =
+										'Please enter a valid UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000)';
 								}
 							}
 							break;
@@ -852,14 +862,31 @@ class Setup
 
 			// Prepare installation data
 			$installation_data = array(
-				'consumer_key' => $consumer_key,
-				'consumer_secret' => $consumer_secret,
-				'business_id' => $business_id,
-				'site_url' => get_site_url(),
-				'store_url' => get_site_url(),
-				'woocommerce_version' => class_exists('WooCommerce') ? \WC()->version : 'Unknown',
-				'wordpress_version' => get_bloginfo('version'),
-				'plugin_version' => Constants::VERSION
+				'event_name' 			=> 'installed',
+				'business_id' 			=> $business_id,
+				'site_url' 				=> get_site_url(),
+				'store_url' 			=> get_site_url(),
+				'woocommerce_version' 	=> class_exists('WooCommerce') ? \WC()->version : 'Unknown',
+				'wordpress_version' 	=> get_bloginfo('version'),
+				'plugin_version' 		=> Constants::VERSION,
+				'data' 					=> [
+					'consumer_key' 		=> $consumer_key,
+					'consumer_secret' 	=> $consumer_secret,
+					'business_id' 		=> $business_id,
+					'store_name' 		=> get_bloginfo('name'),
+					'store_email' 		=> get_bloginfo('admin_email'),
+					'store_address' 	=> get_option('woocommerce_store_address', ''),
+					'store_city' 		=> get_option('woocommerce_store_city', ''),
+					'store_postcode' 	=> get_option('woocommerce_store_postcode', ''),
+					'store_country' 	=> get_option('woocommerce_store_country', ''),
+					'store_state' 		=> get_option('woocommerce_store_state', ''),
+					'store_phone' 		=> get_option('woocommerce_store_phone', ''),
+					'store_currency' 	=> get_woocommerce_currency(),
+					'store_timezone' 	=> get_option('timezone_string', 'UTC'),
+					'store_locale' 		=> get_locale(),
+					'store_language' 	=> get_bloginfo('language'),
+					'store_ssl' 		=> is_ssl() ? 'yes' : 'no'
+				]
 			);
 
 			error_log('Attempting connection with data: ' . json_encode($installation_data));
