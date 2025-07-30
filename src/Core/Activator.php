@@ -27,6 +27,7 @@ use Firebase\JWT\JWT;
 
 class Activator
 {
+
 	function __construct()
 	{
 		// Prevent direct access to the class
@@ -59,6 +60,17 @@ class Activator
 		add_action('admin_init', array($this, 'woocommerce_cart_tracking_installation'));
 		error_log('Mottasl Activator initialized');
 	}
+	// Debug: Log when WooCommerce order created/updated actions are triggered
+	public static function debug_order_hooks()
+	{
+		add_action('woocommerce_new_order', function ($order_id) {
+			error_log('DEBUG: woocommerce_new_order triggered for order_id: ' . $order_id);
+		}, 10, 1);
+		add_action('woocommerce_update_order', function ($order_id) {
+			error_log('DEBUG: woocommerce_update_order triggered for order_id: ' . $order_id);
+		}, 10, 1);
+	}
+
 	function generate_jwt_token($user_id, $secret_key)
 	{
 		$payload = [
@@ -143,6 +155,7 @@ class Activator
 		} else {
 			self::register_webhooks();
 			self::woocommerce_cart_tracking_installation();
+			self::debug_order_hooks();
 		}
 	}
 
@@ -151,12 +164,15 @@ class Activator
 
 	private static function register_webhooks()
 	{
+		// WooCommerce webhook topics must match the supported topics exactly
+		// See: https://woocommerce.github.io/code-reference/classes/WC_Webhook.html#method_get_topic
+		// Use only officially supported WooCommerce webhook topics
 		$webhooks_topics_to_register = [
+			'order.created',
 			'order.updated',
 			'product.updated',
 			'customer.created',
 			'customer.updated',
-
 		];
 
 		// not required though, it is just for webhook secret
@@ -164,13 +180,26 @@ class Activator
 		$consumer_secret = get_option('consumer_secret');;
 		// Set the webhook status to 'active'
 		$webhook_status = 'active';
+		$webhook_data_store = new \WC_Data_Store('webhook');
+		// Delete old webhooks registered by this plugin for the same events
+		$existing_webhooks = $webhook_data_store->get_all();
+		if ($existing_webhooks) {
+			foreach ($existing_webhooks as $hook) {
+				$name = $hook->get_name();
+				$topic = $hook->get_topic();
+				error_log('DEBUG: Found webhook: ' . $name . ' topic: ' . $topic);
+				if ($name && strpos($name, 'Mottasl: ') === 0 && in_array($topic, $webhooks_topics_to_register)) {
+					$hook->delete(true); // true for force delete
+					error_log('Deleted old webhook: ' . $name . ' for topic: ' . $topic);
+				}
+			}
+		}
 
 		// Set the webhook endpoint URL
-
 		foreach ($webhooks_topics_to_register as $webhook_topic) {
 			$api = new MottaslApi();
 			$webhook_url = $api->getApiUrl('/integration/events/woocommerce/' . $webhook_topic);
-			error_log('Webhook URL: ' . $webhook_url);
+			error_log('DEBUG: Registering webhook for topic: ' . $webhook_topic . ' URL: ' . $webhook_url);
 			// Create the webhook data
 			$webhook_data = array(
 				'name' => 'Mottasl: ' . $webhook_topic,
@@ -190,6 +219,7 @@ class Activator
 
 			// Save the webhook
 			$webhook->save();
+			error_log('DEBUG: Webhook saved for topic: ' . $webhook_topic . ' | Status: ' . $webhook->get_status() . ' | Delivery URL: ' . $webhook->get_delivery_url());
 		}
 	}
 }

@@ -59,6 +59,35 @@ class MottaslApi
 	}
 
 	/**
+	 * Create a prepared data object for API requests.
+	 */
+	public function prepareData($data)
+	{
+		$business_id = get_option('business_id', '');
+		if (empty($business_id)) {
+			$business_id = '';
+		}
+		$event_name = isset($data['event_name']) ? $data['event_name'] : 'unknown_event';
+
+		// Remove event_name from data to avoid duplication
+		unset($data['event_name']);
+
+		$preData = [
+			'event_name' 			=> $event_name,
+			'business_id' 			=> $business_id,
+			'site_url' 				=> get_site_url(),
+			'store_url' 			=> get_site_url(),
+			'woocommerce_version' 	=> class_exists('WooCommerce') ? \WC()->version : 'Unknown',
+			'wordpress_version' 	=> get_bloginfo('version'),
+			'plugin_version' 		=> Constants::VERSION,
+			// force to use JSON format, even when the data is empty or an array
+			'data' 				=> empty($data) ? new \stdClass() : $data,
+		];
+		error_log('Prepared data for Mottasl API: ' . json_encode($preData));
+		return $preData;
+	}
+
+	/**
 	 * Make a GET request to the Mottasl API.
 	 *
 	 * @param string $endpoint The API endpoint to call.
@@ -93,6 +122,7 @@ class MottaslApi
 	{
 		$url = $this->getApiUrl($endpoint);
 
+		$data = $this->prepareData($data);
 		error_log('Mottasl API POST request URL: ' . $url);
 		error_log('Mottasl API POST request data: ' . json_encode($data));
 		$response = wp_remote_post($url, [
@@ -118,7 +148,7 @@ class MottaslApi
 	public function put($endpoint, $data = [])
 	{
 		$url = $this->getApiUrl($endpoint);
-
+		$data = $this->prepareData($data);
 		$response = wp_remote_request($url, [
 			'method'  => 'PUT',
 			'body'    => json_encode($data),
@@ -174,6 +204,7 @@ class MottaslApi
 		];
 
 		if (!empty($data)) {
+			$data = $this->prepareData($data);
 			$args['body'] = json_encode($data);
 		}
 

@@ -17,7 +17,6 @@ class Setup
 	 */
 	public function __construct()
 	{
-		error_log('Mottasl Setup initialized');
 		add_action('activated_plugin', [$this, 'mottasl_redirect']);
 		add_action('admin_notices', array($this, 'wpb_admin_notice_warn'));
 		add_action('admin_notices', array($this, 'errors_declaration'));
@@ -861,33 +860,25 @@ class Setup
 			$api = new MottaslApi();
 
 			// Prepare installation data
-			$installation_data = array(
-				'event_name' 			=> 'installed',
-				'business_id' 			=> $business_id,
-				'site_url' 				=> get_site_url(),
-				'store_url' 			=> get_site_url(),
-				'woocommerce_version' 	=> class_exists('WooCommerce') ? \WC()->version : 'Unknown',
-				'wordpress_version' 	=> get_bloginfo('version'),
-				'plugin_version' 		=> Constants::VERSION,
-				'data' 					=> [
-					'consumer_key' 		=> $consumer_key,
-					'consumer_secret' 	=> $consumer_secret,
-					'business_id' 		=> $business_id,
-					'store_name' 		=> get_bloginfo('name'),
-					'store_email' 		=> get_bloginfo('admin_email'),
-					'store_address' 	=> get_option('woocommerce_store_address', ''),
-					'store_city' 		=> get_option('woocommerce_store_city', ''),
-					'store_postcode' 	=> get_option('woocommerce_store_postcode', ''),
-					'store_country' 	=> get_option('woocommerce_store_country', ''),
-					'store_state' 		=> get_option('woocommerce_store_state', ''),
-					'store_phone' 		=> get_option('woocommerce_store_phone', ''),
-					'store_currency' 	=> get_woocommerce_currency(),
-					'store_timezone' 	=> get_option('timezone_string', 'UTC'),
-					'store_locale' 		=> get_locale(),
-					'store_language' 	=> get_bloginfo('language'),
-					'store_ssl' 		=> is_ssl() ? 'yes' : 'no'
-				]
-			);
+			$installation_data = [
+				'event_name' 		=> 'installed',
+				'consumer_key' 		=> $consumer_key,
+				'consumer_secret' 	=> $consumer_secret,
+				'business_id' 		=> $business_id,
+				'store_name' 		=> get_bloginfo('name'),
+				'store_email' 		=> get_bloginfo('admin_email'),
+				'store_address' 	=> get_option('woocommerce_store_address', ''),
+				'store_city' 		=> get_option('woocommerce_store_city', ''),
+				'store_postcode' 	=> get_option('woocommerce_store_postcode', ''),
+				'store_country' 	=> get_option('woocommerce_store_country', ''),
+				'store_state' 		=> get_option('woocommerce_store_state', ''),
+				'store_phone' 		=> get_option('woocommerce_store_phone', ''),
+				'store_currency' 	=> get_woocommerce_currency(),
+				'store_timezone' 	=> get_option('timezone_string', 'UTC'),
+				'store_locale' 		=> get_locale(),
+				'store_language' 	=> get_bloginfo('language'),
+				'store_ssl' 		=> is_ssl() ? 'yes' : 'no'
+			];
 
 			error_log('Attempting connection with data: ' . json_encode($installation_data));
 
