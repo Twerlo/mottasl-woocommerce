@@ -56,15 +56,15 @@ class Constants
 	 *
 	 * @var string
 	 */
-	// const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
-	const MOTTASL_API_BASE_URL = 'https://7e191f1e44b7.ngrok-free.app';
+	const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
+	// const MOTTASL_API_BASE_URL = 'https://7e191f1e44b7.ngrok-free.app';
 
 	/**
 	 * Mottasl application base URL for redirects
 	 *
 	 * @var string
 	 */
-	const MOTTASL_APP_BASE_URL = 'http://localhost:3001'; // 'https://app.mottasl.com';
+	const MOTTASL_APP_BASE_URL = 'https://app.mottasl.com'; //'http://localhost:3001'; //
 
 	/**
 	 * Complete API endpoint URL for WooCommerce integration
