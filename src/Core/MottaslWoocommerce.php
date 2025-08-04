@@ -50,7 +50,7 @@ class MottaslWoocommerce
 		if (is_admin()) {
 			// Load the admin setup class
 			$admin = new Setup();
-			$admin->mottasl_init();
+			// Don't call mottasl_init() here as hooks are already registered in constructor
 		}
 		$this->loader = new MottaslLoader();
 

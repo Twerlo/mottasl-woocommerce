@@ -54,7 +54,7 @@ if (file_exists($jetpack_autoload_file)) {
 		require_once $fallback_autoload_file;
 	} catch (Exception $e) {
 		add_action('admin_notices', function () use ($e) {
-?>
+			?>
 			<div class="notice notice-error">
 				<p>
 					<strong><?php esc_html_e('Mottasl for WooCommerce', 'mottasl-woocommerce'); ?></strong>:
@@ -68,7 +68,7 @@ if (file_exists($jetpack_autoload_file)) {
 					?>
 				</p>
 			</div>
-		<?php
+			<?php
 		});
 
 		add_action('admin_init', function () {
@@ -94,7 +94,7 @@ if (file_exists($jetpack_autoload_file)) {
 				?>
 			</p>
 		</div>
-<?php
+		<?php
 	});
 
 	add_action('admin_init', function () {
@@ -145,31 +145,11 @@ function activate_mottasl_woocommerce()
 		wp_die('The Mottasl Plugin is required to be activated with WooCommerce. Please install and activate WooCommerce first.', 'Plugin activation error', array('response' => 200, 'back_link' => true));
 	}
 	error_log('Start activating Mottasl Process');
-
-	// Only call Activator if the class exists
-	if (class_exists('\Mottasl\Core\Activator')) {
-		try {
-			\Mottasl\Core\Activator::activate();
-		} catch (Exception $e) {
-			error_log('Mottasl Activator error: ' . $e->getMessage());
-		}
-	}
-
-	// Generate JWT token safely
-	$consumer_key = get_option('consumer_key', '');
-	$consumer_secret = get_option('consumer_secret', '');
-
-	if (!empty($consumer_key) && !empty($consumer_secret)) {
-		$encoded_user_credits = generate_jwt_token([
-			'consumer_key' => $consumer_key,
-			'consumer_secret' => $consumer_secret,
-			'store_url' => get_bloginfo('url')
-		], 'woocommerce-install');
-		update_option('encoded_user_credits', $encoded_user_credits);
-	}
-
+	// Retrieved from filtered POST data
+	\Mottasl\Core\Activator::activate();
+	$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
+	update_option('encoded_user_credits', $encoded_user_credits);
 	update_option('mottasl_wc_installation_status', 'pending');
-	error_log('Mottasl activation completed');
 }
 
 /**
@@ -177,14 +157,7 @@ function activate_mottasl_woocommerce()
  */
 function deactivate_mottasl_woocommerce()
 {
-	// Only call Deactivator if the class exists
-	if (class_exists('\Mottasl\Core\Deactivator')) {
-		try {
-			\Mottasl\Core\Deactivator::deactivate();
-		} catch (Exception $e) {
-			error_log('Mottasl Deactivator error: ' . $e->getMessage());
-		}
-	}
+	\Mottasl\Core\Deactivator::deactivate();
 }
 
 /**
@@ -235,19 +208,111 @@ function run_mottasl_woocommerce()
 	register_activation_hook(__FILE__, 'activate_mottasl_woocommerce');
 	register_deactivation_hook(__FILE__, 'deactivate_mottasl_woocommerce');
 
-	// Only instantiate the main plugin class if it exists
-	if (class_exists('\Mottasl\Core\MottaslWoocommerce')) {
-		$plugin = new \Mottasl\Core\MottaslWoocommerce();
-		$plugin->run();
-	} else {
-		// If the main class doesn't exist, log it but don't fail
-		error_log('Mottasl\Core\MottaslWoocommerce class not found, plugin will work with basic functionality');
+	$plugin = new \Mottasl\Core\MottaslWoocommerce();
+	$plugin->run();
+}
 
-		// Fallback: instantiate Setup class directly if main class doesn't exist
-		if (class_exists('\Mottasl\Admin\Setup')) {
-			new \Mottasl\Admin\Setup();
+// Add settings link to plugin actions
+add_filter('plugin_action_links_' . MOTTASL_WC_BASENAME, 'mottasl_add_settings_link');
+function mottasl_add_settings_link($links) {
+	$settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=integration&section=mottasl') . '">' . __('Settings') . '</a>';
+	array_unshift($links, $settings_link);
+	return $links;
+}
+
+// Register WooCommerce Integration Tab
+add_action('plugins_loaded', 'mottasl_init_integration');
+function mottasl_init_integration() {
+	if (class_exists('WC_Integration')) {
+		// Define the integration class
+		if (!class_exists('WC_Mottasl_Integration')) {
+			class WC_Mottasl_Integration extends WC_Integration {
+		
+		public function __construct() {
+			global $woocommerce;
+			
+			$this->id                 = 'mottasl';
+			$this->method_title       = __('Mottasl Integration', 'mottasl-woocommerce');
+			$this->method_description = __('Configure Mottasl integration settings', 'mottasl-woocommerce');
+			
+			// Load the settings.
+			$this->init_form_fields();
+			$this->init_settings();
+			
+			// Define user set variables
+			$this->consumer_key    = $this->get_option('consumer_key');
+			$this->consumer_secret = $this->get_option('consumer_secret');
+			$this->enabled         = $this->get_option('enabled');
+			
+			// Actions
+			add_action('woocommerce_update_options_integration_' . $this->id, array($this, 'process_admin_options'));
+		}
+		
+		/**
+		 * Initialize integration settings form fields.
+		 */
+		public function init_form_fields() {
+			$this->form_fields = array(
+				'enabled' => array(
+					'title'   => __('Enable/Disable', 'mottasl-woocommerce'),
+					'type'    => 'checkbox',
+					'label'   => __('Enable Mottasl Integration', 'mottasl-woocommerce'),
+					'default' => 'no'
+				),
+				'consumer_key' => array(
+					'title'       => __('Consumer Key', 'mottasl-woocommerce'),
+					'type'        => 'text',
+					'description' => __('Enter your Mottasl consumer key.', 'mottasl-woocommerce'),
+					'default'     => get_option('consumer_key', '')
+				),
+				'consumer_secret' => array(
+					'title'       => __('Consumer Secret', 'mottasl-woocommerce'),
+					'type'        => 'password',
+					'description' => __('Enter your Mottasl consumer secret.', 'mottasl-woocommerce'),
+					'default'     => get_option('consumer_secret', '')
+				),
+				'installation_status' => array(
+					'title'       => __('Installation Status', 'mottasl-woocommerce'),
+					'type'        => 'select',
+					'description' => __('Current installation status.', 'mottasl-woocommerce'),
+					'default'     => get_option('mottasl_wc_installation_status', 'pending'),
+					'options'     => array(
+						'pending'   => __('Pending', 'mottasl-woocommerce'),
+						'installed' => __('Installed', 'mottasl-woocommerce'),
+						'failed'    => __('Failed', 'mottasl-woocommerce')
+					),
+					'custom_attributes' => array('readonly' => 'readonly')
+				)
+			);
+		}
+		
+		/**
+		 * Process admin options
+		 */
+		public function process_admin_options() {
+			parent::process_admin_options();
+			
+			// Update the global options
+			update_option('consumer_key', $this->get_option('consumer_key'));
+			update_option('consumer_secret', $this->get_option('consumer_secret'));
+			
+			// Trigger activation if both keys are provided
+			$consumer_key = $this->get_option('consumer_key');
+			$consumer_secret = $this->get_option('consumer_secret');
+			
+			if (!empty($consumer_key) && !empty($consumer_secret)) {
+				mottasl_settings_updated('consumer_key', '', $consumer_key);
+			}
 		}
 	}
+		
+	// Register the integration
+	add_filter('woocommerce_integrations', 'mottasl_add_integration');
+}
+
+function mottasl_add_integration($integrations) {
+	$integrations[] = 'WC_Mottasl_Integration';
+	return $integrations;
 }
 
 function getAllCarts()
@@ -323,16 +388,7 @@ function at_rest_installation_endpoint($req)
 		$res->set_data($store_data);
 		update_option('business_id', $req['business_id']);
 		update_option('mottasl_wc_installation_status', 'installed');
-
-		// Only call Activator if the class exists
-		if (class_exists('\Mottasl\Core\Activator')) {
-			try {
-				\Mottasl\Core\Activator::activate();
-			} catch (Exception $e) {
-				error_log('Mottasl Activator error in REST endpoint: ' . $e->getMessage());
-			}
-		}
-
+		\Mottasl\Core\Activator::activate();
 		return new WP_REST_Response($response, 200);
 	}
 
@@ -369,15 +425,7 @@ function mottasl_settings_updated($option_name, $old_value, $new_value)
 			$encoded_user_credits = generate_jwt_token(['consumer_key' => $consumerKey, 'consumer_secret' => $consumerSecret, 'store_url' => get_bloginfo('url')], 'woocommerce-install');
 			update_option('encoded_user_credits', $encoded_user_credits);
 			update_option('mottasl_wc_installation_status', 'pending');
-
-			// Only call Activator if the class exists
-			if (class_exists('\Mottasl\Core\Activator')) {
-				try {
-					\Mottasl\Core\Activator::activate();
-				} catch (Exception $e) {
-					error_log('Mottasl Activator error in settings update: ' . $e->getMessage());
-				}
-			}
+			\Mottasl\Core\Activator::activate();
 		} else {
 			// If either key is missing, set the installation status to pending
 			update_option('mottasl_wc_installation_status', 'pending');

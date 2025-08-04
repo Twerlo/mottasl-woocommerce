@@ -11,20 +11,37 @@ use Mottasl\Utils\Constants;
 class Setup
 {
 	/**
+	 * Flag to prevent multiple hook registrations
+	 *
+	 * @var bool
+	 */
+	private static $hooks_registered = false;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.0.0
 	 */
 	public function __construct()
 	{
+		// Only register hooks once
+		if (self::$hooks_registered) {
+			return;
+		}
+
+		self::$hooks_registered = true;
 		add_action('activated_plugin', [$this, 'mottasl_redirect']);
 		add_action('admin_notices', array($this, 'wpb_admin_notice_warn'));
 		add_action('admin_notices', array($this, 'errors_declaration'));
 		add_action('admin_enqueue_scripts', array($this, 'register_scripts'));
 		add_action('init', array($this, 'register_page')); // Changed from admin_menu to init
 		add_action('admin_init', array($this, 'handle_wc_admin_redirect')); // Add redirect handler
-		add_filter('woocommerce_get_sections_general', array($this, 'settings_section'));
-		add_filter('woocommerce_get_settings_general', array($this, 'mottasl_settings'), 10, 2);
+
+		// Register WooCommerce hooks after WooCommerce is loaded
+		add_action('woocommerce_loaded', array($this, 'register_woocommerce_hooks'));
+		// Fallback if woocommerce_loaded doesn't fire
+		add_action('plugins_loaded', array($this, 'register_woocommerce_hooks'), 20);
+
 		add_action('woocommerce_admin_field_button', array($this, 'freeship_add_admin_field_button'));
 		add_action('woocommerce_admin_field_mottasl_status_display', array($this, 'render_status_display_field'));
 		add_filter("plugin_action_links", array($this, "modify_plugin_action_links_defaults"), 10, 4);
@@ -55,6 +72,26 @@ class Setup
 
 		endif;
 	}
+
+	/**
+	 * Register WooCommerce specific hooks after WooCommerce is loaded
+	 */
+	public function register_woocommerce_hooks()
+	{
+		// Prevent multiple registrations
+		static $wc_hooks_registered = false;
+		if ($wc_hooks_registered) {
+			return;
+		}
+
+		// Only register if WooCommerce is active
+		if (class_exists('WooCommerce')) {
+			add_filter('woocommerce_get_sections_general', array($this, 'settings_section'));
+			add_filter('woocommerce_get_settings_general', array($this, 'mottasl_settings'), 10, 2);
+			$wc_hooks_registered = true;
+		}
+	}
+
 	function mottasl_deactivate()
 	{
 		deactivate_plugins('mottasl-woocommerce/mottasl.php');
@@ -523,10 +560,10 @@ class Setup
 		if (!get_option('consumer_key') || !get_option('consumer_secret')) {
 			$settings_url = admin_url('admin.php?page=wc-settings&tab=general&section=mottasl_connect');
 			echo '<div class="notice notice-warning is-dismissible">
-				<p><strong>' . __('Mottasl Plugin Configuration Required', 'mottasl-woocommerce') . '</strong></p>
-				<p>' . __('Please configure your WooCommerce credentials to connect with Mottasl.', 'mottasl-woocommerce') . '</p>
-				<p><a href="' . esc_url($settings_url) . '" class="button button-primary">' . __('Go to Mottasl Settings', 'mottasl-woocommerce') . '</a></p>
-			</div>';
+			   <p><strong>' . __('Mottasl Plugin Configuration Required', 'mottasl-woocommerce') . '</strong></p>
+			   <p>' . __('Please configure your WooCommerce credentials to connect with Mottasl.', 'mottasl-woocommerce') . '</p>
+			   <p><a href="' . esc_url($settings_url) . '" class="button button-primary">' . __('Go to Mottasl Settings', 'mottasl-woocommerce') . '</a></p>
+		   </div>';
 		}
 
 		if (!get_option('consumer_key') || !get_option('consumer_secret')) {
@@ -540,7 +577,7 @@ class Setup
 	}
 	function settings_section($sections)
 	{
-		$sections['mottasl_connect'] = __('Mottasl Settings', 'text-domain');
+		$sections['mottasl_connect'] = __('Mottasl WC', 'mottasl-woocommerce');
 		return $sections;
 	}
 
@@ -741,7 +778,7 @@ class Setup
 		) {
 
 			// Redirect to the traditional settings page that we know works
-			$settings_url = admin_url('admin.php?page=wc-settings&tab=general&section=mottasl_connect');
+			$settings_url = admin_url('admin.php?page=wc-settings&tab=generaltab=generaltab=generaltab=integration&section=mottasl_connectsection=mottasl_connectsection=mottasl_connectsection=mottasl_connect');
 			wp_redirect($settings_url);
 			exit;
 		}
