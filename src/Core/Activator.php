@@ -71,15 +71,6 @@ class Activator
 		}, 10, 1);
 	}
 
-	function generate_jwt_token($user_id, $secret_key)
-	{
-		$payload = [
-			'sub' => $user_id,
-		];
-
-		return JWT::encode($payload, 'woocommerce-install', 'HS256');
-	}
-
 	public static function woocommerce_cart_tracking_installation()
 	{
 		global $wpdb;
@@ -147,8 +138,8 @@ class Activator
 			wp_die('This plugin requires WooCommerce to function properly. Please install WooCommerce first.');
 		}
 
-		$consumerKey = get_option('consumer_secret') ?? '';
-		$consumerSecret = get_option('consumer_secret') ?? '';
+		$consumerKey = get_option('mottasl_consumer_secret') ?? '';
+		$consumerSecret = get_option('mottasl_consumer_secret') ?? '';
 
 		if (!$consumerKey || !$consumerSecret) {
 			update_option('activation_note', 'not valid');
@@ -176,8 +167,8 @@ class Activator
 		];
 
 		// not required though, it is just for webhook secret
-		$consumer_key = get_option('consumer_key');
-		$consumer_secret = get_option('consumer_secret');;
+		$consumer_key = get_option('mottasl_consumer_key');
+		$consumer_secret = get_option('mottasl_consumer_secret');;
 		// Set the webhook status to 'active'
 		$webhook_status = 'active';
 		$webhook_data_store = new \WC_Data_Store('webhook');

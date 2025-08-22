@@ -2,6 +2,9 @@
 
 namespace Mottasl\Utils;
 
+
+use Firebase\JWT\JWT;
+
 /**
  * Helpers class.
  *
@@ -330,5 +333,37 @@ class Helpers
 		if (empty($_POST['phone_number'])) {
 			$errors->add('phone_number_error', 'Please add a valid phone number!');
 		}
+	}
+
+	function generate_jwt_token($user_credits, $secret_key)
+	{
+		$payload = $user_credits;
+
+		return JWT::encode($payload, $secret_key, 'HS256');
+	}
+
+	function getInstallationToken()
+	{
+		$business_id = get_option('mottasl_business_id');
+		$consumer_key = get_option('mottasl_consumer_key');
+		$consumer_secret = get_option('mottasl_consumer_secret');
+		$siteUrl = get_bloginfo('url');
+		if (!$siteUrl) {
+			$siteUrl = home_url();
+		}
+		if (!$business_id || !$consumer_key || !$consumer_secret) {
+			return false;
+		}
+
+		$user_credits = array(
+			'business_id' => $business_id,
+			'consumer_key' => $consumer_key,
+			'consumer_secret' => $consumer_secret,
+			'store_url' => $siteUrl,
+			'site_url' => $siteUrl
+		);
+
+
+		return $this->generate_jwt_token($user_credits, Constants::JWT_SECRET_KEY);
 	}
 }

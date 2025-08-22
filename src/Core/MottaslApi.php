@@ -31,7 +31,7 @@ class MottaslApi
 	{
 		return [
 			'Content-Type' => 'application/json',
-			'X-BUSINESS-Id' => get_option('business_id')
+			'BUSINESS-ID' => get_option('mottasl_business_id')
 		];
 	}
 
@@ -63,7 +63,7 @@ class MottaslApi
 	 */
 	public function prepareData($data)
 	{
-		$business_id = get_option('business_id', '');
+		$business_id = get_option('mottasl_business_id', '');
 		if (empty($business_id)) {
 			$business_id = '';
 		}
@@ -121,13 +121,25 @@ class MottaslApi
 	public function post($endpoint, $data = [])
 	{
 		$url = $this->getApiUrl($endpoint);
+		$headers = $this->getHeaders();
 
-		$data = $this->prepareData($data);
-		error_log('Mottasl API POST request URL: ' . $url);
-		error_log('Mottasl API POST request data: ' . json_encode($data));
+		// Special handling for abandoned cart endpoint - send data directly
+		if ($endpoint === 'abandoned_cart.create') {
+			$payload = $data; // Send cart data directly as array
+			error_log('Mottasl API POST request URL: ' . $url);
+			error_log('Mottasl API POST request headers: ' . json_encode($headers));
+			error_log('Mottasl API POST request data (abandoned cart): ' . json_encode($payload));
+		} else {
+			// Use standard wrapper format for other endpoints
+			$payload = $this->prepareData($data);
+			error_log('Mottasl API POST request URL: ' . $url);
+			error_log('Mottasl API POST request headers: ' . json_encode($headers));
+			error_log('Mottasl API POST request data: ' . json_encode($payload));
+		}
+
 		$response = wp_remote_post($url, [
-			'body' => json_encode($data),
-			'headers' => $this->getHeaders(),
+			'body' => json_encode($payload),
+			'headers' => $headers,
 		]);
 
 		if (is_wp_error($response)) {

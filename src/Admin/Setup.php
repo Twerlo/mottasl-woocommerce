@@ -4,6 +4,7 @@ namespace Mottasl\Admin;
 
 use Mottasl\Core\MottaslApi;
 use Mottasl\Utils\Constants;
+use Mottasl\Utils\Helpers;
 
 /**
  * Hub Setup Class
@@ -143,9 +144,11 @@ class Setup
 			function handleButtonClick(event) {
 				if (event.target.getAttribute('id') === 'connect') {
 					// Validate required fields before connecting
-					const consumerKey = document.getElementById('consumer_key') ? document.getElementById('consumer_key').value
+					const consumerKey = document.getElementById('mottasl_consumer_key') ? document.getElementById(
+							'mottasl_consumer_key').value
 						.trim() : '';
-					const consumerSecret = document.getElementById('consumer_secret') ? document.getElementById('consumer_secret')
+					const consumerSecret = document.getElementById('mottasl_consumer_secret') ? document.getElementById(
+							'mottasl_consumer_secret')
 						.value.trim() : '';
 					const businessId = document.getElementById('mottasl_business_id') ? document.getElementById(
 						'mottasl_business_id').value.trim() : '';
@@ -178,8 +181,8 @@ class Setup
 					// Save current field values to WordPress options
 					const formData = new FormData();
 					formData.append('action', 'save_mottasl_settings');
-					formData.append('consumer_key', consumerKey);
-					formData.append('consumer_secret', consumerSecret);
+					formData.append('mottasl_consumer_key', consumerKey);
+					formData.append('mottasl_consumer_secret', consumerSecret);
 					formData.append('mottasl_business_id', businessId);
 					formData.append('nonce', '<?php echo wp_create_nonce('mottasl_save_settings'); ?>');
 
@@ -231,7 +234,7 @@ class Setup
 
 			// Enhanced validation function with proper error display
 			function validateAllFields() {
-				const fields = ['consumer_key', 'consumer_secret', 'mottasl_business_id'];
+				const fields = ['mottasl_consumer_key', 'mottasl_consumer_secret', 'mottasl_business_id'];
 				let hasErrors = false;
 
 				fields.forEach(fieldId => {
@@ -260,7 +263,7 @@ class Setup
 							}
 							break;
 
-						case 'consumer_key':
+						case 'mottasl_consumer_key':
 							if (!value) {
 								isValid = false;
 								errorMessage = 'Consumer Key is required';
@@ -270,7 +273,7 @@ class Setup
 							}
 							break;
 
-						case 'consumer_secret':
+						case 'mottasl_consumer_secret':
 							if (!value) {
 								isValid = false;
 								errorMessage = 'Consumer Secret is required';
@@ -322,7 +325,7 @@ class Setup
 						}
 						break;
 
-					case 'consumer_key':
+					case 'mottasl_consumer_key':
 						if (!value) {
 							isValid = false;
 							errorMessage = 'Consumer Key is required';
@@ -332,7 +335,7 @@ class Setup
 						}
 						break;
 
-					case 'consumer_secret':
+					case 'mottasl_consumer_secret':
 						if (!value) {
 							isValid = false;
 							errorMessage = 'Consumer Secret is required';
@@ -361,7 +364,7 @@ class Setup
 
 			// Comprehensive validation function
 			function validateFields() {
-				const fields = ['consumer_key', 'consumer_secret', 'mottasl_business_id'];
+				const fields = ['mottasl_consumer_key', 'mottasl_consumer_secret', 'mottasl_business_id'];
 				let allValid = true;
 
 				fields.forEach(fieldId => {
@@ -391,7 +394,7 @@ class Setup
 			document.addEventListener('DOMContentLoaded', function() {
 				validateFields();
 
-				['consumer_key', 'consumer_secret', 'mottasl_business_id'].forEach(function(fieldId) {
+				['mottasl_consumer_key', 'mottasl_consumer_secret', 'mottasl_business_id'].forEach(function(fieldId) {
 					const field = document.getElementById(fieldId);
 					if (field) {
 						// Real-time validation on input
@@ -557,7 +560,7 @@ class Setup
 
 	function wpb_admin_notice_warn()
 	{
-		if (!get_option('consumer_key') || !get_option('consumer_secret')) {
+		if (!get_option('mottasl_consumer_key') || !get_option('mottasl_consumer_secret')) {
 			$settings_url = admin_url('admin.php?page=wc-settings&tab=general&section=mottasl_connect');
 			echo '<div class="notice notice-warning is-dismissible">
 			   <p><strong>' . __('Mottasl Plugin Configuration Required', 'mottasl-woocommerce') . '</strong></p>
@@ -566,7 +569,7 @@ class Setup
 		   </div>';
 		}
 
-		if (!get_option('consumer_key') || !get_option('consumer_secret')) {
+		if (!get_option('mottasl_consumer_key') || !get_option('mottasl_consumer_secret')) {
 			$api_keys_url = admin_url('admin.php?page=wc-settings&tab=advanced&section=keys');
 			echo '<div class="notice notice-info is-dismissible">
 				<p><strong>' . __('Need WooCommerce API Keys?', 'mottasl-woocommerce') . '</strong></p>
@@ -588,8 +591,8 @@ class Setup
 			$installation_status = get_option('mottasl_wc_installation_status', 'pending');
 
 			// Check if we have all required credentials
-			$consumer_key = get_option('consumer_key');
-			$consumer_secret = get_option('consumer_secret');
+			$consumer_key = get_option('mottasl_consumer_key');
+			$consumer_secret = get_option('mottasl_consumer_secret');
 			$business_id = get_option('mottasl_business_id');
 
 			// If credentials are missing, force status to pending
@@ -674,18 +677,18 @@ class Setup
 				array(
 					'name' => __('Consumer Key *', 'text-domain'),
 					'desc_tip' => __('Enter the generated consumer Key here', 'text-domain'),
-					'id' => 'consumer_key',
+					'id' => 'mottasl_consumer_key',
 					'type' => 'text',
-					'desc' => __('Enter the generated consumer Key here.<br><span id="consumer_key_error" class="mottasl-error" style="color: red; display: none;"></span>', 'text-domain'),
+					'desc' => __('Enter the generated consumer Key here.<br><span id="mottasl_consumer_key_error" class="mottasl-error" style="color: red; display: none;"></span>', 'text-domain'),
 					'display_callback' => null
 				),
 
 				array(
 					'name' => __('Consumer Secret *', 'text-domain'),
 					'desc_tip' => __('Enter the generated consumer secret here', 'text-domain'),
-					'id' => 'consumer_secret',
+					'id' => 'mottasl_consumer_secret',
 					'type' => 'text',
-					'desc' => __('Enter the generated consumer secret here.<br><span id="consumer_secret_error" class="mottasl-error" style="color: red; display: none;"></span>', 'text-domain'),
+					'desc' => __('Enter the generated consumer secret here.<br><span id="mottasl_consumer_secret_error" class="mottasl-error" style="color: red; display: none;"></span>', 'text-domain'),
 					'display_callback' => null
 				),
 
@@ -847,8 +850,8 @@ class Setup
 		}
 
 		// Sanitize and save the settings
-		$consumer_key = sanitize_text_field($_POST['consumer_key']);
-		$consumer_secret = sanitize_text_field($_POST['consumer_secret']);
+		$consumer_key = sanitize_text_field($_POST['mottasl_consumer_key']);
+		$consumer_secret = sanitize_text_field($_POST['mottasl_consumer_secret']);
 		$business_id = sanitize_text_field($_POST['mottasl_business_id']);
 
 		// Validate Business ID format
@@ -858,10 +861,9 @@ class Setup
 		}
 
 		// Save settings
-		update_option('consumer_key', $consumer_key);
-		update_option('consumer_secret', $consumer_secret);
+		update_option('mottasl_consumer_key', $consumer_key);
+		update_option('mottasl_consumer_secret', $consumer_secret);
 		update_option('mottasl_business_id', $business_id);
-		update_option('business_id', $business_id); // For API headers
 
 		wp_send_json_success('Settings saved successfully');
 	}
@@ -883,8 +885,8 @@ class Setup
 
 		try {
 			// Get saved credentials
-			$consumer_key = get_option('consumer_key');
-			$consumer_secret = get_option('consumer_secret');
+			$consumer_key = get_option('mottasl_consumer_key');
+			$consumer_secret = get_option('mottasl_consumer_secret');
 			$business_id = get_option('mottasl_business_id');
 
 			// Validate required fields
@@ -931,13 +933,16 @@ class Setup
 				return;
 			}
 
+			$helpers = new Helpers();
+			$installationToken = $helpers->getInstallationToken();
+			error_log('Mottasl Installation token: ' . $installationToken);
+			// Prepare redirect URL to Mottasl platform
+			$redirect_url = Constants::MOTTASL_APP_BASE_URL . "/ecommerce-apps/?platform=woocommerce&code=$installationToken";
 			// Check for successful response structure
 			if (isset($response['success']) && $response['success'] === true) {
 				// Connection successful
 				update_option('mottasl_wc_installation_status', 'installed');
 
-				// Prepare redirect URL to Mottasl platform
-				$redirect_url = Constants::MOTTASL_APP_BASE_URL . '/businesses/' . $business_id . '/integrations';
 
 				wp_send_json_success(array(
 					'message' => 'Connection successful',
@@ -950,9 +955,6 @@ class Setup
 			if (isset($response['data']) || isset($response['status'])) {
 				// Assume success if we get structured data back
 				update_option('mottasl_wc_installation_status', 'installed');
-
-				$redirect_url = Constants::MOTTASL_APP_BASE_URL . '/businesses/' . $business_id . '/integrations';
-
 				wp_send_json_success(array(
 					'message' => 'Connection successful',
 					'redirect_url' => $redirect_url
@@ -988,8 +990,8 @@ class Setup
 		$installation_status = get_option('mottasl_wc_installation_status', 'pending');
 
 		// Check if credentials are available
-		$consumer_key = get_option('consumer_key');
-		$consumer_secret = get_option('consumer_secret');
+		$consumer_key = get_option('mottasl_consumer_key');
+		$consumer_secret = get_option('mottasl_consumer_secret');
 		$business_id = get_option('mottasl_business_id');
 
 		$has_credentials = !empty($consumer_key) && !empty($consumer_secret) && !empty($business_id);

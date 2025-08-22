@@ -147,7 +147,7 @@ function activate_mottasl_woocommerce()
 	error_log('Start activating Mottasl Process');
 	// Retrieved from filtered POST data
 	\Mottasl\Core\Activator::activate();
-	$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('consumer_key'), 'consumer_secret' => get_option('consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
+	$encoded_user_credits = generate_jwt_token(['consumer_key' => get_option('mottasl_consumer_key'), 'consumer_secret' => get_option('mottasl_consumer_secret'), 'store_url' => get_bloginfo('url')], 'woocommerce-install');
 	update_option('encoded_user_credits', $encoded_user_credits);
 	update_option('mottasl_wc_installation_status', 'pending');
 }
@@ -227,27 +227,27 @@ function mottasl_init_integration() {
 		// Define the integration class
 		if (!class_exists('WC_Mottasl_Integration')) {
 			class WC_Mottasl_Integration extends WC_Integration {
-		
+
 		public function __construct() {
 			global $woocommerce;
-			
+
 			$this->id                 = 'mottasl';
 			$this->method_title       = __('Mottasl Integration', 'mottasl-woocommerce');
 			$this->method_description = __('Configure Mottasl integration settings', 'mottasl-woocommerce');
-			
+
 			// Load the settings.
 			$this->init_form_fields();
 			$this->init_settings();
-			
+
 			// Define user set variables
-			$this->consumer_key    = $this->get_option('consumer_key');
-			$this->consumer_secret = $this->get_option('consumer_secret');
+			$this->consumer_key    = $this->get_option('mottasl_consumer_key');
+			$this->consumer_secret = $this->get_option('mottasl_consumer_secret');
 			$this->enabled         = $this->get_option('enabled');
-			
+
 			// Actions
 			add_action('woocommerce_update_options_integration_' . $this->id, array($this, 'process_admin_options'));
 		}
-		
+
 		/**
 		 * Initialize integration settings form fields.
 		 */
@@ -263,13 +263,13 @@ function mottasl_init_integration() {
 					'title'       => __('Consumer Key', 'mottasl-woocommerce'),
 					'type'        => 'text',
 					'description' => __('Enter your Mottasl consumer key.', 'mottasl-woocommerce'),
-					'default'     => get_option('consumer_key', '')
+					'default'     => get_option('mottasl_consumer_key', '')
 				),
 				'consumer_secret' => array(
 					'title'       => __('Consumer Secret', 'mottasl-woocommerce'),
 					'type'        => 'password',
 					'description' => __('Enter your Mottasl consumer secret.', 'mottasl-woocommerce'),
-					'default'     => get_option('consumer_secret', '')
+					'default'     => get_option('mottasl_consumer_secret', '')
 				),
 				'installation_status' => array(
 					'title'       => __('Installation Status', 'mottasl-woocommerce'),
@@ -285,27 +285,27 @@ function mottasl_init_integration() {
 				)
 			);
 		}
-		
+
 		/**
 		 * Process admin options
 		 */
 		public function process_admin_options() {
 			parent::process_admin_options();
-			
+
 			// Update the global options
-			update_option('consumer_key', $this->get_option('consumer_key'));
-			update_option('consumer_secret', $this->get_option('consumer_secret'));
-			
+			update_option('mottasl_consumer_key', $this->get_option('mottasl_consumer_key'));
+			update_option('mottasl_consumer_secret', $this->get_option('mottasl_consumer_secret'));
+
 			// Trigger activation if both keys are provided
-			$consumer_key = $this->get_option('consumer_key');
-			$consumer_secret = $this->get_option('consumer_secret');
-			
+			$consumer_key = $this->get_option('mottasl_consumer_key');
+			$consumer_secret = $this->get_option('mottasl_consumer_secret');
+
 			if (!empty($consumer_key) && !empty($consumer_secret)) {
 				mottasl_settings_updated('consumer_key', '', $consumer_key);
 			}
 		}
 	}
-		
+
 	// Register the integration
 	add_filter('woocommerce_integrations', 'mottasl_add_integration');
 }
@@ -370,7 +370,7 @@ function at_rest_installation_endpoint($req)
 	}
 	$response = array();
 	$res = new WP_REST_Response($response);
-	if ($consumerKey !== get_option('consumer_key') && $consumerSecret !== get_option('consumer_secret')) {
+	if ($consumerKey !== get_option('mottasl_consumer_key') && $consumerSecret !== get_option('mottasl_consumer_secret')) {
 
 		update_option('notice_error', 'please connect to mottasl with correct data');
 		update_option('mottasl_wc_installation_status', 'pending');
@@ -386,7 +386,7 @@ function at_rest_installation_endpoint($req)
 		$res->set_status(200);
 		$response = $store_data;
 		$res->set_data($store_data);
-		update_option('business_id', $req['business_id']);
+		update_option('mottasl_business_id', $req['business_id']);
 		update_option('mottasl_wc_installation_status', 'installed');
 		\Mottasl\Core\Activator::activate();
 		return new WP_REST_Response($response, 200);
@@ -418,8 +418,8 @@ function at_rest_init()
 function mottasl_settings_updated($option_name, $old_value, $new_value)
 {
 	if ($option_name === 'consumer_key' || $option_name === 'consumer_secret') {
-		$consumerKey = get_option('consumer_key');
-		$consumerSecret = get_option('consumer_secret');
+		$consumerKey = get_option('mottasl_consumer_key');
+		$consumerSecret = get_option('mottasl_consumer_secret');
 		if ($consumerKey && $consumerSecret) {
 			// If both keys are set, proceed with the installation
 			$encoded_user_credits = generate_jwt_token(['consumer_key' => $consumerKey, 'consumer_secret' => $consumerSecret, 'store_url' => get_bloginfo('url')], 'woocommerce-install');

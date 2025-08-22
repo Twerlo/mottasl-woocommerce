@@ -120,15 +120,24 @@ add_action('before_woocommerce_init', function () {
 	}
 });
 
+// Exclude REST API requests from WooCommerce coming soon mode
+// This needs to be added early, before plugins_loaded
+add_filter('woocommerce_coming_soon_exclude', function ($is_excluded) {
+	// Check if this is a REST API request
+	if (defined('REST_REQUEST') && REST_REQUEST) {
+		return true;
+	}
+
+	// Also check for wp-json in the URL as fallback
+	if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/wp-json/') !== false) {
+		return true;
+	}
+
+	return $is_excluded;
+});
+
 use Mottasl\Utils\Helpers;
-use Firebase\JWT\JWT;
-
-function generate_jwt_token($user_credits, $secret_key)
-{
-	$payload = $user_credits;
-
-	return JWT::encode($payload, 'woocommerce-install', 'HS256');
-}
+use Mottasl\Utils\Constants;
 
 /**
  * The code that runs during plugin activation.
@@ -156,16 +165,13 @@ function activate_mottasl_woocommerce()
 	}
 
 	// Generate JWT token safely
-	$consumer_key = get_option('consumer_key', '');
-	$consumer_secret = get_option('consumer_secret', '');
-
-	if (!empty($consumer_key) && !empty($consumer_secret)) {
-		$encoded_user_credits = generate_jwt_token([
-			'consumer_key' => $consumer_key,
-			'consumer_secret' => $consumer_secret,
-			'store_url' => get_bloginfo('url')
-		], 'woocommerce-install');
-		update_option('encoded_user_credits', $encoded_user_credits);
+	$consumer_key = get_option('mottasl_consumer_key', '');
+	$consumer_secret = get_option('mottasl_consumer_secret', '');
+	$businessId = get_option('mottasl_business_id', '');
+	$helpers = new Helpers();
+	if (!empty($consumer_key) && !empty($consumer_secret) && !empty($businessId)) {
+		$installationToken = $helpers->getInstallationToken();
+		update_option('mottasl_installation_token', $installationToken);
 	}
 
 	update_option('mottasl_wc_installation_status', 'pending');
@@ -205,6 +211,7 @@ function run_mottasl_woocommerce()
 
 
 	add_action('rest_api_init', 'at_rest_init');
+
 	add_action('rest_api_init', function () {
 		register_rest_route(
 			'hub-api/v1',
@@ -248,6 +255,24 @@ function run_mottasl_woocommerce()
 			new \Mottasl\Admin\Setup();
 		}
 	}
+
+	// Initialize Cart Tracking functionality by including the file
+	$cart_tracking_file = plugin_dir_path(__FILE__) . 'src/Core/CartTracking.php';
+	if (file_exists($cart_tracking_file)) {
+		require_once $cart_tracking_file;
+		error_log('Mottasl CartTracking initialized');
+	} else {
+		error_log('Mottasl CartTracking file not found: ' . $cart_tracking_file);
+	}
+
+	// Initialize Cart Cron functionality by including the file
+	$cart_cron_file = plugin_dir_path(__FILE__) . 'src/Core/CartCron.php';
+	if (file_exists($cart_cron_file)) {
+		require_once $cart_cron_file;
+		error_log('Mottasl CartCron initialized');
+	} else {
+		error_log('Mottasl CartCron file not found: ' . $cart_cron_file);
+	}
 }
 
 function getAllCarts()
@@ -289,54 +314,55 @@ function getAllCarts()
 	return new WP_REST_Response(['cart_items' => $abandoned_carts], 200);
 }
 
-function at_rest_installation_endpoint($req)
+function at_rest_installation_endpoint($request)
 {
 	error_log('at_rest_installation_endpoint called');
-	if (!$req['auth']) {
+
+	// Get auth data from request parameters (properly handles JSON body)
+	$auth = $request->get_param('auth');
+	if (empty($auth) || !is_array($auth)) {
 		return new WP_REST_Response(['error' => 'not authorized'], 401);
 	}
-	$accessToken = $req['auth']['access_token'];
-	list($consumerKey, $consumerSecret) = explode(':', $accessToken);
-	$key = 'woocommerce-install';
-	$algo = 'HS256';
-	if (!$accessToken) {
+
+	$accessToken = isset($auth['access_token']) ? $auth['access_token'] : '';
+	if (empty($accessToken)) {
 		update_option('notice_error', 'please connect to mottasl with correct data');
 		return new WP_REST_Response(['error' => 'access token is required'], 403);
 	}
-	$response = array();
-	$res = new WP_REST_Response($response);
-	if ($consumerKey !== get_option('consumer_key') && $consumerSecret !== get_option('consumer_secret')) {
 
+	list($consumerKey, $consumerSecret) = explode(':', $accessToken);
+	$key = Constants::JWT_SECRET_KEY;
+	$algo = 'HS256';
+	// Check credentials match stored values
+	if ($consumerKey !== get_option('mottasl_consumer_key') || $consumerSecret !== get_option('mottasl_consumer_secret')) {
 		update_option('notice_error', 'please connect to mottasl with correct data');
 		update_option('mottasl_wc_installation_status', 'pending');
 		return new WP_REST_Response(['error' => 'installation failed', 'mottasl_wc_installation_status' => 'pending'], 403);
-	} else {
-		$store_data = array(
-			'event_name' => 'installed',
-			'store_name' => get_bloginfo('name'),
-			'store_email' => get_option('admin_email'),
-			'store_url' => get_bloginfo('url'),
-			'platform_id' => get_option('store_id', ''),
-		);
-		$res->set_status(200);
-		$response = $store_data;
-		$res->set_data($store_data);
-		update_option('business_id', $req['business_id']);
-		update_option('mottasl_wc_installation_status', 'installed');
-
-		// Only call Activator if the class exists
-		if (class_exists('\Mottasl\Core\Activator')) {
-			try {
-				\Mottasl\Core\Activator::activate();
-			} catch (Exception $e) {
-				error_log('Mottasl Activator error in REST endpoint: ' . $e->getMessage());
-			}
-		}
-
-		return new WP_REST_Response($response, 200);
 	}
 
-	return ['response' => $res];
+	// Auth successful - proceed with installation
+	$business_id = $request->get_param('business_id');
+	$store_data = array(
+		'event_name' => 'installed',
+		'store_name' => get_bloginfo('name'),
+		'store_email' => get_option('admin_email'),
+		'store_url' => get_bloginfo('url'),
+		'platform_id' => get_option('store_id', ''),
+	);
+
+	update_option('mottasl_business_id', $business_id);
+	update_option('mottasl_wc_installation_status', 'installed');
+
+	// Only call Activator if the class exists
+	if (class_exists('\Mottasl\Core\Activator')) {
+		try {
+			\Mottasl\Core\Activator::activate();
+		} catch (Exception $e) {
+			error_log('Mottasl Activator error in REST endpoint: ' . $e->getMessage());
+		}
+	}
+
+	return new WP_REST_Response($store_data, 200);
 }
 
 /**
@@ -351,23 +377,22 @@ function at_rest_init()
 		[
 			'methods' => 'POST',
 			'callback' => 'at_rest_installation_endpoint',
-			'permission_callback' => function ($request) {
-				// Check if the request has the required parameters
-				return isset($request['auth']) && isset($request['auth']['access_token']);
-			},
+			// Allow all requests through - auth is handled in the callback
+			'permission_callback' => '__return_true',
 		]
 	);
 }
 
 function mottasl_settings_updated($option_name, $old_value, $new_value)
 {
-	if ($option_name === 'consumer_key' || $option_name === 'consumer_secret') {
-		$consumerKey = get_option('consumer_key');
-		$consumerSecret = get_option('consumer_secret');
+	if ($option_name === 'mottasl_consumer_key' || $option_name === 'mottasl_consumer_secret') {
+		$consumerKey = get_option('mottasl_consumer_key');
+		$consumerSecret = get_option('mottasl_consumer_secret');
 		if ($consumerKey && $consumerSecret) {
+			$helpers = new Helpers();
 			// If both keys are set, proceed with the installation
-			$encoded_user_credits = generate_jwt_token(['consumer_key' => $consumerKey, 'consumer_secret' => $consumerSecret, 'store_url' => get_bloginfo('url')], 'woocommerce-install');
-			update_option('encoded_user_credits', $encoded_user_credits);
+			$installationToken = $helpers->getInstallationToken();
+			update_option('mottasl_installation_token', $installationToken);
 			update_option('mottasl_wc_installation_status', 'pending');
 
 			// Only call Activator if the class exists

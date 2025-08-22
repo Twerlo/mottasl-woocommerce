@@ -76,7 +76,7 @@ class Deactivator
 		} else {
 			update_option('notice_error', '');
 			// Success, delete integration_id
-			update_option('business_id', '');
+			update_option('mottasl_business_id', '');
 		}
 	}
 

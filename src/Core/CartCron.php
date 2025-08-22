@@ -25,48 +25,141 @@ function my_function()
 	// Define the time limit in minutes
 	$time_limit = 15;
 
-	// Calculate the cutoff time
-	$cutoff_time = current_time('mysql', 1) - ($time_limit * 60);
-
-	// SQL to update cart_status to 'abandoned'
-	$sql = $wpdb->prepare(
-		"UPDATE $table_name
+	// SQL to update cart_status to 'abandoned' (no placeholders needed for this query)
+	$sql = "UPDATE $table_name
          SET `cart_status` = 'abandoned'
-        WHERE DATE(`update_time`) <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)  AND `cart_status` = 'new'",
-
-		$cutoff_time
-	);
+        WHERE `update_time` <= DATE_SUB(NOW(), INTERVAL $time_limit MINUTE) AND `cart_status` = 'new'";
 
 	// Execute the SQL
 	$wpdb->query($sql);
-	$carts = $wpdb->get_results("
-    SELECT * FROM $table_name  WHERE `cart_status` = 'abandoned' ", ARRAY_A);
-	foreach ($carts as &$cart) {
-		$cart['customer_data'] = json_decode($cart['customer_data']);
-		$cart['products'] = json_decode($cart['products']);
+	$carts = $wpdb->get_results($wpdb->prepare("
+    SELECT * FROM $table_name WHERE `cart_status` = %s", 'abandoned'), ARRAY_A);
+
+	// Transform cart data to match expected API format
+	$formatted_carts = [];
+	foreach ($carts as $cart) {
+		$customer_data = json_decode($cart['customer_data'], true);
+		$products = json_decode($cart['products'], true);
+
+		// Convert products to line_items format
+		$line_items = [];
+		if (is_array($products)) {
+			foreach ($products as $index => $product) {
+				// Extract clean price (remove HTML)
+				$clean_price = $product['price'];
+				if (strpos($clean_price, '<span') !== false) {
+					// Extract number from HTML price format
+					preg_match('/(\d+[,.]?\d*)/', $clean_price, $matches);
+					$clean_price = isset($matches[1]) ? str_replace(',', '.', $matches[1]) : '0.00';
+				}
+
+				$line_items[] = [
+					'id' => ($index + 1) * 1000 + intval($cart['id']), // Generate unique line item ID
+					'product_id' => intval($product['product_id']),
+					'variant_id' => null,
+					'title' => get_the_title($product['product_id']) ?: 'Product #' . $product['product_id'],
+					'quantity' => intval($product['quantity']),
+					'price' => number_format(floatval($clean_price), 2, '.', ''),
+					'total_price' => number_format(floatval($clean_price) * intval($product['quantity']), 2, '.', ''),
+					'sku' => get_post_meta($product['product_id'], '_sku', true) ?: '',
+					'image_url' => wp_get_attachment_image_url(get_post_thumbnail_id($product['product_id']), 'full') ?: ''
+				];
+			}
+		}
+
+		// Generate cart token (simulate WooCommerce cart token)
+		$cart_token = 'wc_cart_token_' . md5($cart['id'] . $cart['creation_time']);
+
+		// Format cart data according to API specification
+		$formatted_cart = [
+			'store_url' => $cart['store_url'],
+			'customer_id' => strval($cart['customer_id']),
+			'cart_id' => 'wc_cart_' . $cart['id'],
+			'cart_token' => $cart_token,
+			'created_at' => date('c', strtotime($cart['creation_time'])), // ISO 8601 format
+			'updated_at' => date('c', strtotime($cart['update_time'])), // ISO 8601 format
+			'currency' => get_woocommerce_currency(),
+			'total_price' => number_format(floatval($cart['cart_total']), 2, '.', ''),
+			'total_discount' => '0.00', // Not tracked in current implementation
+			'line_items' => $line_items,
+			'customer_data' => [
+				'customer_id' => intval($cart['customer_id']),
+				'email' => $customer_data['email'] ?? '',
+				'first_name' => $customer_data['first_name'] ?? '',
+				'last_name' => $customer_data['last_name'] ?? '',
+				'phone' => $customer_data['phone'] ?? ''
+			],
+			'billing_address' => [
+				'first_name' => $customer_data['first_name'] ?? '',
+				'last_name' => $customer_data['last_name'] ?? '',
+				'company' => '',
+				'address_1' => '',
+				'address_2' => '',
+				'city' => '',
+				'state' => '',
+				'postcode' => '',
+				'country' => '',
+				'email' => $customer_data['email'] ?? '',
+				'phone' => $customer_data['phone'] ?? ''
+			],
+			'shipping_address' => [
+				'first_name' => $customer_data['first_name'] ?? '',
+				'last_name' => $customer_data['last_name'] ?? '',
+				'company' => '',
+				'address_1' => '',
+				'address_2' => '',
+				'city' => '',
+				'state' => '',
+				'postcode' => '',
+				'country' => ''
+			],
+			'cart_recovery_url' => $cart['store_url'] . '/cart?recover=' . $cart_token,
+			'cart_status' => $cart['cart_status'],
+			'abandoned_at' => date('c', strtotime($cart['update_time'] . ' +15 minutes'))
+		];
+
+		$formatted_carts[] = $formatted_cart;
 	}
 
 	// Initialize the MottaslApi
 	$api = new MottaslApi();
 
-	// Send abandoned cart create event
-	$response = $api->post('abandoned_cart.create', $carts);
+	// Send each abandoned cart individually
+	$successful_cart_ids = [];
+	foreach ($formatted_carts as $formatted_cart) {
+		// Send individual cart object (not array)
+		$response = $api->post('abandoned_cart.create', $formatted_cart);
+		
+		// Track successful submissions
+		if (!isset($response['error'])) {
+			$successful_cart_ids[] = $formatted_cart['cart_id'];
+			error_log('Successfully sent abandoned cart: ' . $formatted_cart['cart_id']);
+		} else {
+			// Log the error for debugging
+			error_log('Mottasl API Error for cart ' . $formatted_cart['cart_id'] . ': ' . $response['error']);
+		}
+	}
 
-	// Check for successful response before marking as notified
-	if (!isset($response['error'])) {
-		// Prepare a list of cart IDs to update
-		$cart_ids = wp_list_pluck($carts, 'id');
-		$cart_ids_placeholder = implode(',', array_fill(0, count($cart_ids), '%d'));
-
-		// Update the notification_sent status to true
-		$sql = $wpdb->prepare(
-			"UPDATE {$wpdb->prefix}cart_tracking_wc_cart
-             SET `notification_sent` = true
-             WHERE `cart_status` = 'abandoned' AND `notification_sent` = 0"
-		);
-		$wpdb->query($sql);
-	} else {
-		// Log the error for debugging
-		error_log('Mottasl API Error in CartCron: ' . $response['error']);
+	// Update notification_sent status only for successfully sent carts
+	if (!empty($successful_cart_ids)) {
+		// Extract numeric IDs from cart_id format (wc_cart_X)
+		$numeric_ids = [];
+		foreach ($successful_cart_ids as $cart_id) {
+			if (preg_match('/wc_cart_(\d+)/', $cart_id, $matches)) {
+				$numeric_ids[] = intval($matches[1]);
+			}
+		}
+		
+		if (!empty($numeric_ids)) {
+			$id_placeholders = implode(',', array_fill(0, count($numeric_ids), '%d'));
+			$sql = $wpdb->prepare(
+				"UPDATE {$wpdb->prefix}cart_tracking_wc_cart
+				 SET `notification_sent` = true
+				 WHERE `cart_status` = 'abandoned' AND `notification_sent` = 0 AND `id` IN ($id_placeholders)",
+				...$numeric_ids
+			);
+			$wpdb->query($sql);
+			error_log('Updated notification_sent status for ' . count($numeric_ids) . ' carts');
+		}
 	}
 }

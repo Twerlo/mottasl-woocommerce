@@ -56,15 +56,17 @@ class Constants
 	 *
 	 * @var string
 	 */
-	const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
-	// const MOTTASL_API_BASE_URL = 'https://7e191f1e44b7.ngrok-free.app';
+	//const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
+	//const MOTTASL_API_BASE_URL = 'https://dev.hub.avocad0.dev';
+	const MOTTASL_API_BASE_URL = 'http://localhost:3000';
 
 	/**
 	 * Mottasl application base URL for redirects
 	 *
 	 * @var string
 	 */
-	const MOTTASL_APP_BASE_URL = 'https://app.mottasl.ai'; //'http://localhost:3001'; //
+	// const MOTTASL_APP_BASE_URL = 'https://app.mottasl.ai'; //'http://localhost:3001'; //
+	const MOTTASL_APP_BASE_URL = 'https://dev.app.avocad0.dev'; //'http://localhost:3001'; //
 
 	/**
 	 * Complete API endpoint URL for WooCommerce integration
@@ -85,4 +87,11 @@ class Constants
 	 * Kept for backward compatibility
 	 */
 	const API_PATH = 'api/v1/integration/events/woocommerce';
+
+	/**
+	 * JWT token secret key.
+	 *
+	 * @var string
+	 */
+	const JWT_SECRET_KEY = 'woocommerce-install';
 }
