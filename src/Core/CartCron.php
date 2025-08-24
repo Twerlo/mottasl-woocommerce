@@ -129,7 +129,7 @@ function my_function()
 	foreach ($formatted_carts as $formatted_cart) {
 		// Send individual cart object (not array)
 		$response = $api->post('abandoned_cart.create', $formatted_cart);
-		
+
 		// Track successful submissions
 		if (!isset($response['error'])) {
 			$successful_cart_ids[] = $formatted_cart['cart_id'];
@@ -149,7 +149,7 @@ function my_function()
 				$numeric_ids[] = intval($matches[1]);
 			}
 		}
-		
+
 		if (!empty($numeric_ids)) {
 			$id_placeholders = implode(',', array_fill(0, count($numeric_ids), '%d'));
 			$sql = $wpdb->prepare(
