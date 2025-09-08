@@ -57,8 +57,8 @@ class Constants
 	 * @var string
 	 */
 	//const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
-	//const MOTTASL_API_BASE_URL = 'https://dev.hub.avocad0.dev';
-	const MOTTASL_API_BASE_URL = 'http://localhost:3000';
+	const MOTTASL_API_BASE_URL = 'https://042e5cc36435.ngrok-free.app';
+	// const MOTTASL_API_BASE_URL = 'http://localhost:3000';
 
 	/**
 	 * Mottasl application base URL for redirects
@@ -66,7 +66,7 @@ class Constants
 	 * @var string
 	 */
 	// const MOTTASL_APP_BASE_URL = 'https://app.mottasl.ai'; //'http://localhost:3001'; //
-	const MOTTASL_APP_BASE_URL = 'https://dev.app.avocad0.dev'; //'http://localhost:3001'; //
+	const MOTTASL_APP_BASE_URL = 'https://test.app.avocad0.dev'; //'http://localhost:3001'; //
 
 	/**
 	 * Complete API endpoint URL for WooCommerce integration
