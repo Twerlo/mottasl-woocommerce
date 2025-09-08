@@ -93,8 +93,8 @@ function wtrackt_add_to_cart($cart_item_key, $product_id, $quantity)
 			}
 			WC()->session->set('wtrackt_new_cart', $last_cart_number);
 
-			// Send new cart creation notification
-			wtrackt_send_cart_creation_notification($last_cart_number);
+			// Cart creation notification will be handled by cron job after 15 minutes
+			error_log('New cart created, will be processed by cron job: ' . $last_cart_number);
 		}
 	} else {
 		// Update existing cart
@@ -336,7 +336,7 @@ function wtrackt_cart_updated()
 			'last_name' => WC()->cart->get_customer()->get_billing_last_name(),
 			'email' => WC()->cart->get_customer()->get_billing_email(),
 			'customer_id' => $customer_id,
-			'phone' => get_user_meta($customer_id, 'phone_code', true) . get_user_meta($customer_id, 'phone_number', true),
+			'phone' => wtrackt_get_customer_phone($customer_id),
 		];
 		$products = [];
 
@@ -344,13 +344,15 @@ function wtrackt_cart_updated()
 			$product = $cart_item['data'];
 			$product_id = $cart_item['product_id'];
 			$quantity = $cart_item['quantity'];
-			$price = WC()->cart->get_product_price($product);
+			$price_html = WC()->cart->get_product_price($product);
+			$price_clean = wtrackt_extract_clean_price($price_html);
 			$link = $product->get_permalink($cart_item);
 			// Anything related to $product, check $product tutorial
 			$products[] = [
 				'product_id' => $product_id,
 				'quantity' => $quantity,
-				'price' => $price,
+				'price' => $price_clean,
+				'price_html' => $price_html, // Keep original HTML for reference if needed
 				'link' => $link,
 				// Add other relevant data points here
 			];
@@ -383,7 +385,9 @@ function wtrackt_cart_updated()
 
 		// Send cart update notification if cart was previously abandoned
 		if ($previous_cart && $previous_cart['cart_status'] === 'abandoned') {
-			wtrackt_send_cart_update_notification($new_cart, $previous_cart);
+			// Schedule notification to be sent after 15 minutes by the cron job
+			// The cron will handle the 15-minute delay and send the notification
+			error_log('Cart was updated from abandoned status, will be notified by cron job for cart: ' . $new_cart);
 		}
 	}
 }
@@ -568,9 +572,97 @@ function wtrackt_new_order($order_id)
 
 		// Send abandoned cart completion event
 		if ($cart_details) {
-			$cart_details['customer_data'] = json_decode($cart_details['customer_data']);
-			$cart_details['products'] = json_decode($cart_details['products']);
-			$response = $api->post('abandoned_cart.complete', [$cart_details]);
+			$customer_data = json_decode($cart_details['customer_data'], true) ?: [];
+			$products = json_decode($cart_details['products'], true) ?: [];
+
+			// Generate cart token
+			$cart_token = 'wc_cart_token_' . md5($cart_details['id'] . $cart_details['creation_time']);
+
+			// Convert products to line_items format
+			$line_items = [];
+			if (is_array($products)) {
+				foreach ($products as $index => $product) {
+					// Extract clean price (remove HTML)
+					$clean_price = $product['price'];
+					if (strpos($clean_price, '<span') !== false) {
+						preg_match('/(\d+[,.]?\d*)/', $clean_price, $matches);
+						$clean_price = isset($matches[1]) ? str_replace(',', '.', $matches[1]) : '0.00';
+					}
+
+					$line_items[] = [
+						'id' => ($index + 1) * 1000 + intval($cart_details['id']),
+						'product_id' => intval($product['product_id']),
+						'variant_id' => null,
+						'title' => get_the_title($product['product_id']) ?: 'Product #' . $product['product_id'],
+						'quantity' => intval($product['quantity']),
+						'price' => number_format(floatval($clean_price), 2, '.', ''),
+						'total_price' => number_format(floatval($clean_price) * intval($product['quantity']), 2, '.', ''),
+						'sku' => get_post_meta($product['product_id'], '_sku', true) ?: '',
+						'image_url' => wp_get_attachment_image_url(get_post_thumbnail_id($product['product_id']), 'full') ?: ''
+					];
+				}
+			}
+
+			// Format cart data according to GoLang AbandonedCart struct
+			$formatted_cart = [
+				// Primary fields matching the GoLang struct
+				'store_url' => $cart_details['store_url'],
+				'customer_id' => strval($cart_details['customer_id']),
+				'cart_id' => 'wc_cart_' . $cart_details['id'],
+				'cart_token' => $cart_token,
+				'created_at' => date('c', strtotime($cart_details['creation_time'] ?: $cart_details['update_time'])),
+				'updated_at' => date('c', strtotime($cart_details['update_time'])),
+				'currency' => get_woocommerce_currency(),
+				'total_price' => number_format(floatval($cart_details['cart_total']), 2, '.', ''),
+				'total_discount' => '0.00',
+				'line_items' => $line_items,
+				'customer_data' => [
+					'customer_id' => intval($cart_details['customer_id']),
+					'email' => $customer_data['email'] ?? '',
+					'first_name' => $customer_data['first_name'] ?? '',
+					'last_name' => $customer_data['last_name'] ?? '',
+					'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+				],
+				'billing_address' => [
+					'first_name' => $customer_data['first_name'] ?? '',
+					'last_name' => $customer_data['last_name'] ?? '',
+					'company' => '',
+					'address_1' => '',
+					'address_2' => '',
+					'city' => '',
+					'state' => '',
+					'postcode' => '',
+					'country' => '',
+					'email' => $customer_data['email'] ?? '',
+					'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+				],
+				'shipping_address' => [
+					'first_name' => $customer_data['first_name'] ?? '',
+					'last_name' => $customer_data['last_name'] ?? '',
+					'company' => '',
+					'address_1' => '',
+					'address_2' => '',
+					'city' => '',
+					'state' => '',
+					'postcode' => '',
+					'country' => ''
+				],
+				'cart_recovery_url' => $cart_details['store_url'] . '/cart?recover=' . $cart_token,
+				'cart_status' => 'completed',
+				'abandoned_at' => '',
+
+				// Legacy fields for backward compatibility
+				'id' => strval($cart_details['id']),
+				'creation_time' => $cart_details['creation_time'] ?: $cart_details['update_time'],
+				'update_time' => $cart_details['update_time'],
+				'cart_total' => number_format(floatval($cart_details['cart_total']), 2, '.', ''),
+				'order_created' => strval($order_data_id),
+				'notification_sent' => strval($cart_details['notification_sent'] ?? '0'),
+				'ip_address' => $cart_details['ip_address'] ?? null,
+				'products' => $products
+			];
+
+			$response = $api->post('abandoned_cart.complete', $formatted_cart);
 
 			// Handle response errors
 			if (isset($response['error'])) {
@@ -601,28 +693,101 @@ function wtrackt_send_cart_creation_notification($cart_id)
 		return;
 	}
 
+	// Check if 15 minutes have passed since creation/last update
+	$time_diff = time() - strtotime($cart['update_time']);
+	if ($time_diff < 900) { // 900 seconds = 15 minutes
+		error_log('Cart creation notification skipped - not enough time passed for cart: ' . $cart_id);
+		return;
+	}
+
 	$customer_data = json_decode($cart['customer_data'], true) ?: [];
+	$products = json_decode($cart['products'], true) ?: [];
 
 	// Generate cart token
 	$cart_token = 'wc_cart_token_' . md5($cart['id'] . $cart['creation_time']);
 
-	// Format cart data for API
+	// Convert products to line_items format
+	$line_items = [];
+	if (is_array($products)) {
+		foreach ($products as $index => $product) {
+			// Extract clean price (remove HTML)
+			$clean_price = $product['price'];
+			if (strpos($clean_price, '<span') !== false) {
+				preg_match('/(\d+[,.]?\d*)/', $clean_price, $matches);
+				$clean_price = isset($matches[1]) ? str_replace(',', '.', $matches[1]) : '0.00';
+			}
+
+			$line_items[] = [
+				'id' => ($index + 1) * 1000 + intval($cart['id']),
+				'product_id' => intval($product['product_id']),
+				'variant_id' => null,
+				'title' => get_the_title($product['product_id']) ?: 'Product #' . $product['product_id'],
+				'quantity' => intval($product['quantity']),
+				'price' => number_format(floatval($clean_price), 2, '.', ''),
+				'total_price' => number_format(floatval($clean_price) * intval($product['quantity']), 2, '.', ''),
+				'sku' => get_post_meta($product['product_id'], '_sku', true) ?: '',
+				'image_url' => wp_get_attachment_image_url(get_post_thumbnail_id($product['product_id']), 'full') ?: ''
+			];
+		}
+	}
+
+	// Format cart data according to GoLang AbandonedCart struct
 	$formatted_cart = [
+		// Primary fields matching the GoLang struct
 		'store_url' => get_bloginfo('url'),
 		'customer_id' => strval($cart['customer_id']),
 		'cart_id' => 'wc_cart_' . $cart['id'],
 		'cart_token' => $cart_token,
 		'created_at' => date('c', strtotime($cart['creation_time'] ?: $cart['update_time'])),
+		'updated_at' => date('c', strtotime($cart['update_time'])),
 		'currency' => get_woocommerce_currency(),
 		'total_price' => number_format(floatval($cart['cart_total']), 2, '.', ''),
-		'cart_status' => 'created',
+		'total_discount' => '0.00',
+		'line_items' => $line_items,
 		'customer_data' => [
 			'customer_id' => intval($cart['customer_id']),
 			'email' => $customer_data['email'] ?? '',
 			'first_name' => $customer_data['first_name'] ?? '',
 			'last_name' => $customer_data['last_name'] ?? '',
-			'phone' => $customer_data['phone'] ?? ''
-		]
+			'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+		],
+		'billing_address' => [
+			'first_name' => $customer_data['first_name'] ?? '',
+			'last_name' => $customer_data['last_name'] ?? '',
+			'company' => '',
+			'address_1' => '',
+			'address_2' => '',
+			'city' => '',
+			'state' => '',
+			'postcode' => '',
+			'country' => '',
+			'email' => $customer_data['email'] ?? '',
+			'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+		],
+		'shipping_address' => [
+			'first_name' => $customer_data['first_name'] ?? '',
+			'last_name' => $customer_data['last_name'] ?? '',
+			'company' => '',
+			'address_1' => '',
+			'address_2' => '',
+			'city' => '',
+			'state' => '',
+			'postcode' => '',
+			'country' => ''
+		],
+		'cart_recovery_url' => get_bloginfo('url') . '/cart?recover=' . $cart_token,
+		'cart_status' => 'created',
+		'abandoned_at' => '',
+
+		// Legacy fields for backward compatibility
+		'id' => strval($cart['id']),
+		'creation_time' => $cart['creation_time'] ?: $cart['update_time'],
+		'update_time' => $cart['update_time'],
+		'cart_total' => number_format(floatval($cart['cart_total']), 2, '.', ''),
+		'order_created' => $cart['order_created'] ?? '',
+		'notification_sent' => strval($cart['notification_sent'] ?? '0'),
+		'ip_address' => $cart['ip_address'] ?? null,
+		'products' => $products
 	];
 
 	// Initialize the MottaslApi
@@ -633,6 +798,15 @@ function wtrackt_send_cart_creation_notification($cart_id)
 
 	if (!isset($response['error'])) {
 		error_log('Successfully sent cart creation notification for cart: ' . $cart_id);
+
+		// Mark notification as sent
+		$wpdb->update(
+			$table_name,
+			array('notification_sent' => 1),
+			array('id' => $cart_id),
+			array('%d'),
+			array('%d')
+		);
 	} else {
 		error_log('Mottasl API Error for cart creation ' . $cart_id . ': ' . $response['error']);
 	}
@@ -654,30 +828,102 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 		return;
 	}
 
-	$customer_data = json_decode($cart['customer_data'], true);
-	$products = json_decode($cart['products'], true);
+	// Check if 15 minutes have passed since last update
+	$time_diff = time() - strtotime($cart['update_time']);
+	if ($time_diff < 900) { // 900 seconds = 15 minutes
+		error_log('Cart update notification skipped - not enough time passed for cart: ' . $cart_id);
+		return;
+	}
+
+	$customer_data = json_decode($cart['customer_data'], true) ?: [];
+	$products = json_decode($cart['products'], true) ?: [];
 
 	// Generate cart token
 	$cart_token = 'wc_cart_token_' . md5($cart['id'] . $cart['creation_time']);
 
-	// Format cart data for API
+	// Convert products to line_items format
+	$line_items = [];
+	if (is_array($products)) {
+		foreach ($products as $index => $product) {
+			// Extract clean price (remove HTML)
+			$clean_price = $product['price'];
+			if (strpos($clean_price, '<span') !== false) {
+				preg_match('/(\d+[,.]?\d*)/', $clean_price, $matches);
+				$clean_price = isset($matches[1]) ? str_replace(',', '.', $matches[1]) : '0.00';
+			}
+
+			$line_items[] = [
+				'id' => ($index + 1) * 1000 + intval($cart['id']),
+				'product_id' => intval($product['product_id']),
+				'variant_id' => null,
+				'title' => get_the_title($product['product_id']) ?: 'Product #' . $product['product_id'],
+				'quantity' => intval($product['quantity']),
+				'price' => number_format(floatval($clean_price), 2, '.', ''),
+				'total_price' => number_format(floatval($clean_price) * intval($product['quantity']), 2, '.', ''),
+				'sku' => get_post_meta($product['product_id'], '_sku', true) ?: '',
+				'image_url' => wp_get_attachment_image_url(get_post_thumbnail_id($product['product_id']), 'full') ?: ''
+			];
+		}
+	}
+
+	// Format cart data according to GoLang AbandonedCart struct
 	$formatted_cart = [
+		// Primary fields matching the GoLang struct
 		'store_url' => $cart['store_url'],
 		'customer_id' => strval($cart['customer_id']),
 		'cart_id' => 'wc_cart_' . $cart['id'],
 		'cart_token' => $cart_token,
+		'created_at' => date('c', strtotime($cart['creation_time'] ?: $cart['update_time'])),
 		'updated_at' => date('c', strtotime($cart['update_time'])),
 		'currency' => get_woocommerce_currency(),
 		'total_price' => number_format(floatval($cart['cart_total']), 2, '.', ''),
-		'cart_status' => 'updated',
-		'previous_status' => $previous_cart['cart_status'],
+		'total_discount' => '0.00',
+		'line_items' => $line_items,
 		'customer_data' => [
 			'customer_id' => intval($cart['customer_id']),
 			'email' => $customer_data['email'] ?? '',
 			'first_name' => $customer_data['first_name'] ?? '',
 			'last_name' => $customer_data['last_name'] ?? '',
-			'phone' => $customer_data['phone'] ?? ''
-		]
+			'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+		],
+		'billing_address' => [
+			'first_name' => $customer_data['first_name'] ?? '',
+			'last_name' => $customer_data['last_name'] ?? '',
+			'company' => '',
+			'address_1' => '',
+			'address_2' => '',
+			'city' => '',
+			'state' => '',
+			'postcode' => '',
+			'country' => '',
+			'email' => $customer_data['email'] ?? '',
+			'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+		],
+		'shipping_address' => [
+			'first_name' => $customer_data['first_name'] ?? '',
+			'last_name' => $customer_data['last_name'] ?? '',
+			'company' => '',
+			'address_1' => '',
+			'address_2' => '',
+			'city' => '',
+			'state' => '',
+			'postcode' => '',
+			'country' => ''
+		],
+		'cart_recovery_url' => $cart['store_url'] . '/cart?recover=' . $cart_token,
+		'cart_status' => 'updated',
+		'abandoned_at' => '',
+
+		// Legacy fields for backward compatibility
+		'id' => strval($cart['id']),
+		'creation_time' => $cart['creation_time'] ?: $cart['update_time'],
+		'update_time' => $cart['update_time'],
+		'cart_total' => number_format(floatval($cart['cart_total']), 2, '.', ''),
+		'order_created' => $cart['order_created'] ?? '',
+		'notification_sent' => strval($cart['notification_sent'] ?? '0'),
+		'ip_address' => $cart['ip_address'] ?? null,
+		'products' => $products,
+		'previous_status' => $previous_cart['cart_status']
 	];
 
 	// Initialize the MottaslApi
@@ -688,6 +934,15 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 
 	if (!isset($response['error'])) {
 		error_log('Successfully sent cart update notification for cart: ' . $cart_id);
+
+		// Mark notification as sent
+		$wpdb->update(
+			$table_name,
+			array('notification_sent' => 1),
+			array('id' => $cart_id),
+			array('%d'),
+			array('%d')
+		);
 	} else {
 		error_log('Mottasl API Error for cart update ' . $cart_id . ': ' . $response['error']);
 	}
@@ -709,27 +964,96 @@ function wtrackt_send_cart_deletion_notification($cart_id)
 		return;
 	}
 
-	$customer_data = json_decode($cart['customer_data'], true);
+	$customer_data = json_decode($cart['customer_data'], true) ?: [];
+	$products = json_decode($cart['products'], true) ?: [];
 
 	// Generate cart token
 	$cart_token = 'wc_cart_token_' . md5($cart['id'] . $cart['creation_time']);
 
-	// Format cart data for API
+	// Convert products to line_items format
+	$line_items = [];
+	if (is_array($products)) {
+		foreach ($products as $index => $product) {
+			// Extract clean price (remove HTML)
+			$clean_price = $product['price'];
+			if (strpos($clean_price, '<span') !== false) {
+				preg_match('/(\d+[,.]?\d*)/', $clean_price, $matches);
+				$clean_price = isset($matches[1]) ? str_replace(',', '.', $matches[1]) : '0.00';
+			}
+
+			$line_items[] = [
+				'id' => ($index + 1) * 1000 + intval($cart['id']),
+				'product_id' => intval($product['product_id']),
+				'variant_id' => null,
+				'title' => get_the_title($product['product_id']) ?: 'Product #' . $product['product_id'],
+				'quantity' => intval($product['quantity']),
+				'price' => number_format(floatval($clean_price), 2, '.', ''),
+				'total_price' => number_format(floatval($clean_price) * intval($product['quantity']), 2, '.', ''),
+				'sku' => get_post_meta($product['product_id'], '_sku', true) ?: '',
+				'image_url' => wp_get_attachment_image_url(get_post_thumbnail_id($product['product_id']), 'full') ?: ''
+			];
+		}
+	}
+
+	// Format cart data according to GoLang AbandonedCart struct
 	$formatted_cart = [
+		// Primary fields matching the GoLang struct
 		'store_url' => $cart['store_url'],
 		'customer_id' => strval($cart['customer_id']),
 		'cart_id' => 'wc_cart_' . $cart['id'],
 		'cart_token' => $cart_token,
-		'deleted_at' => date('c'),
-		'cart_status' => 'deleted',
-		'previous_status' => $cart['cart_status'],
+		'created_at' => date('c', strtotime($cart['creation_time'] ?: $cart['update_time'])),
+		'updated_at' => date('c', strtotime($cart['update_time'])),
+		'currency' => get_woocommerce_currency(),
+		'total_price' => number_format(floatval($cart['cart_total']), 2, '.', ''),
+		'total_discount' => '0.00',
+		'line_items' => $line_items,
 		'customer_data' => [
 			'customer_id' => intval($cart['customer_id']),
 			'email' => $customer_data['email'] ?? '',
 			'first_name' => $customer_data['first_name'] ?? '',
 			'last_name' => $customer_data['last_name'] ?? '',
-			'phone' => $customer_data['phone'] ?? ''
-		]
+			'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+		],
+		'billing_address' => [
+			'first_name' => $customer_data['first_name'] ?? '',
+			'last_name' => $customer_data['last_name'] ?? '',
+			'company' => '',
+			'address_1' => '',
+			'address_2' => '',
+			'city' => '',
+			'state' => '',
+			'postcode' => '',
+			'country' => '',
+			'email' => $customer_data['email'] ?? '',
+			'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+		],
+		'shipping_address' => [
+			'first_name' => $customer_data['first_name'] ?? '',
+			'last_name' => $customer_data['last_name'] ?? '',
+			'company' => '',
+			'address_1' => '',
+			'address_2' => '',
+			'city' => '',
+			'state' => '',
+			'postcode' => '',
+			'country' => ''
+		],
+		'cart_recovery_url' => $cart['store_url'] . '/cart?recover=' . $cart_token,
+		'cart_status' => 'deleted',
+		'abandoned_at' => '',
+
+		// Legacy fields for backward compatibility
+		'id' => strval($cart['id']),
+		'creation_time' => $cart['creation_time'] ?: $cart['update_time'],
+		'update_time' => $cart['update_time'],
+		'cart_total' => number_format(floatval($cart['cart_total']), 2, '.', ''),
+		'order_created' => $cart['order_created'] ?? '',
+		'notification_sent' => strval($cart['notification_sent'] ?? '0'),
+		'ip_address' => $cart['ip_address'] ?? null,
+		'products' => $products,
+		'previous_status' => $cart['cart_status'],
+		'deleted_at' => date('c')
 	];
 
 	// Initialize the MottaslApi
@@ -796,4 +1120,74 @@ function wtrackt_user_login_update($user_login, $user)
 			array('%d')
 		);
 	}
+}
+
+// Helper function to get customer phone number from multiple sources
+function wtrackt_get_customer_phone($customer_id = 0)
+{
+	$phone = '';
+
+	if ($customer_id > 0) {
+		// Try to get phone from user meta (custom fields)
+		$phone_code = get_user_meta($customer_id, 'phone_code', true);
+		$phone_number = get_user_meta($customer_id, 'phone_number', true);
+
+		if (!empty($phone_code) && !empty($phone_number)) {
+			$phone = $phone_code . $phone_number;
+		}
+
+		// If still empty, try billing phone from user meta
+		if (empty($phone)) {
+			$phone = get_user_meta($customer_id, 'billing_phone', true);
+		}
+
+		// If still empty, try shipping phone from user meta
+		if (empty($phone)) {
+			$phone = get_user_meta($customer_id, 'shipping_phone', true);
+		}
+	}
+
+	// If still empty and WooCommerce customer is available, get from current session
+	if (empty($phone) && WC()->cart && WC()->cart->get_customer()) {
+		$customer = WC()->cart->get_customer();
+		$phone = $customer->get_billing_phone();
+
+		// Try shipping phone if billing phone is empty
+		if (empty($phone)) {
+			$phone = $customer->get_shipping_phone();
+		}
+	}
+
+	// Clean and format phone number
+	if (!empty($phone)) {
+		// Remove any HTML tags or special characters
+		$phone = strip_tags($phone);
+		$phone = preg_replace('/[^0-9+\-\s\(\)]/', '', $phone);
+		$phone = trim($phone);
+	}
+
+	return $phone ?: '';
+}
+
+// Helper function to extract clean price from HTML formatted price
+function wtrackt_extract_clean_price($html_price)
+{
+	// If it's already a clean number, return it
+	if (is_numeric($html_price)) {
+		return number_format(floatval($html_price), 2, '.', '');
+	}
+
+	// Remove HTML tags first
+	$clean_price = strip_tags($html_price);
+
+	// Extract numbers and decimal/comma separators
+	// This regex will match patterns like: 19,99 or 19.99 or 1999 or 19 99
+	if (preg_match('/(\d+(?:[,.]?\d*)?)/', $clean_price, $matches)) {
+		$price = $matches[1];
+		// Replace comma with dot for decimal separator
+		$price = str_replace(',', '.', $price);
+		return number_format(floatval($price), 2, '.', '');
+	}
+
+	return '0.00';
 }
