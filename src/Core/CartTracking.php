@@ -356,11 +356,15 @@ function wtrackt_cart_updated()
 	$customer_id = get_current_user_id();
 
 	if ($cart_total != 0 && !is_null($new_cart)) {
-		// Get previous cart data to compare
+		// Get previous cart data to compare for actual changes
 		$previous_cart = $wpdb->get_row(
 			$wpdb->prepare("SELECT * FROM $table_cart_name WHERE id = %d", $new_cart),
 			ARRAY_A
 		);
+
+		if (!$previous_cart) {
+			return;
+		}
 
 		$customer_data = [
 			'first_name' => WC()->cart->get_customer()->get_billing_first_name(),
@@ -378,47 +382,62 @@ function wtrackt_cart_updated()
 			$price_html = WC()->cart->get_product_price($product);
 			$price_clean = wtrackt_extract_clean_price($price_html);
 			$link = $product->get_permalink($cart_item);
-			// Anything related to $product, check $product tutorial
+			
 			$products[] = [
 				'product_id' => $product_id,
 				'quantity' => $quantity,
 				'price' => $price_clean,
-				'price_html' => $price_html, // Keep original HTML for reference if needed
+				'price_html' => $price_html,
 				'link' => $link,
-				// Add other relevant data points here
 			];
 		}
 
-		// Update cart data
-		$wpdb->update(
-			$table_cart_name,
-			array(
-				'cart_total' => $cart_total,
-				'customer_data' => json_encode($customer_data),
-				'products' => json_encode($products),
-				'store_url' => get_bloginfo('url'),
-				'update_time' => current_time('mysql'),
-				'cart_status' => 'new', // Reset to new when updated
-				'notification_sent' => 0, // Reset notification flag for updates
-			),
-			array('id' => $new_cart),
-			array(
-				'%f',
-				'%s',
-				'%s',
-				'%s',
-				'%s',
-				'%s',
-				'%d',
-			),
-			array('%d')
-		);
+		// Check if there are actual meaningful changes before updating
+		$has_changes = false;
 
-		// Send cart update notification if cart was previously abandoned
-		if ($previous_cart && $previous_cart['cart_status'] === 'abandoned') {
-			// Schedule notification to be sent after 15 minutes by the cron job
-			// The cron will handle the 15-minute delay and send the notification
-			error_log('Cart was updated from abandoned status, will be notified by cron job for cart: ' . $new_cart);
+		// Check if cart total changed significantly (more than 0.01 difference)
+		if (abs(floatval($previous_cart['cart_total']) - $cart_total) > 0.01) {
+			$has_changes = true;
+		}
+
+		// Check if products changed (compare serialized data)
+		$previous_products = json_decode($previous_cart['products'], true) ?: [];
+		if (json_encode($products) !== json_encode($previous_products)) {
+			$has_changes = true;
+		}
+
+		// Check if customer data changed
+		$previous_customer_data = json_decode($previous_cart['customer_data'], true) ?: [];
+		if (json_encode($customer_data) !== json_encode($previous_customer_data)) {
+			$has_changes = true;
+		}
+
+		// Only update if there are actual changes
+		if ($has_changes) {
+			// Update cart data
+			$wpdb->update(
+				$table_cart_name,
+				array(
+					'cart_total' => $cart_total,
+					'customer_data' => json_encode($customer_data),
+					'products' => json_encode($products),
+					'store_url' => get_bloginfo('url'),
+					'update_time' => current_time('mysql'),
+					'cart_status' => 'new', // Reset to new when updated
+					'notification_sent' => 0, // Reset notification flag for updates
+				),
+				array('id' => $new_cart),
+				array(
+					'%f',
+					'%s',
+					'%s',
+					'%s',
+					'%s',
+					'%s',
+					'%d',
+				),
+				array('%d')
+			);
 		}
 	}
 }
