@@ -97,23 +97,23 @@ function wtrackt_add_to_cart($cart_item_key, $product_id, $quantity)
 			error_log('New cart created, will be processed by cron job: ' . $last_cart_number);
 		}
 	} else {
-		// Update existing cart
-		$cart_update_query = $wpdb->query(
-			$wpdb->prepare(
-				"UPDATE $table_cart_name
-				SET update_time = %s, cart_total = %f
-				WHERE id = %d",
-				current_time('mysql'),
-				$cart_total,
-				$new_cart
-			)
+		// Update existing cart - first verify cart exists in database
+		$existing_cart = $wpdb->get_row(
+			$wpdb->prepare("SELECT id FROM $table_cart_name WHERE id = %d", $new_cart),
+			ARRAY_A
 		);
 
-		if (!$cart_update_query) {
+		if (!$existing_cart) {
+			// Cart session exists but database record is missing - clear session and create new cart
+			WC()->session->__unset('wtrackt_new_cart');
+			error_log('Cart session mismatch detected, clearing session and creating new cart');
+
+			// Create new cart
 			$carts_insert = array(
 				'update_time' => current_time('mysql'),
 				'cart_total' => $cart_total,
 				'customer_id' => $customer_id,
+				'cart_status' => 'new',
 				'notification_sent' => 0,
 			);
 			if (!is_user_logged_in()) {
@@ -139,8 +139,22 @@ function wtrackt_add_to_cart($cart_item_key, $product_id, $quantity)
 					}
 				}
 				WC()->session->set('wtrackt_new_cart', $last_cart_number);
+				error_log('New cart created after session mismatch: ' . $last_cart_number);
 			}
 		} else {
+			// Cart exists - update it properly
+			$cart_update_query = $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE $table_cart_name
+					SET update_time = %s, cart_total = %f
+					WHERE id = %d",
+					current_time('mysql'),
+					$cart_total,
+					$new_cart
+				)
+			);
+
+			// Handle product-specific logic for the existing cart
 			$sql = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}cart_tracking_wc WHERE cart_number = %d AND product_id = %d", $new_cart, $product_id);
 			$results = $wpdb->get_results($sql, ARRAY_A);
 
@@ -233,23 +247,32 @@ function wtrackt_update_cart_action_cart_updated($cart_updated)
 				WC()->session->set('wtrackt_new_cart', $last_cart_number);
 			}
 		} else {
-			$cart_update_query = $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}cart_tracking_wc_cart\r\n                    SET update_time = %s\r\n                 WHERE id = %d", current_time('mysql'), $new_cart));
+			// Update existing cart - first verify cart exists in database
+			$existing_cart = $wpdb->get_row(
+				$wpdb->prepare("SELECT id FROM $table_cart_name WHERE id = %d", $new_cart),
+				ARRAY_A
+			);
 
-			if (!$cart_update_query) {
+			if (!$existing_cart) {
+				// Cart session exists but database record is missing - clear session and create new cart
+				WC()->session->__unset('wtrackt_new_cart');
+				error_log('Cart session mismatch detected in cart update, clearing session and creating new cart');
+
+				// Create new cart
 				$carts_insert = array(
 					'update_time' => current_time('mysql'),
+					'creation_time' => current_time('mysql'),
 					'cart_total' => $cart_total,
 					'customer_id' => $customer_id,
+					'cart_status' => 'new',
+					'notification_sent' => 0,
 				);
-
 				if (!is_user_logged_in()) {
-
 					if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
 						$ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];
 					} else {
 						$ip_address = $_SERVER['REMOTE_ADDR'];
 					}
-
 					$carts_insert['ip_address'] = $ip_address;
 				}
 
@@ -267,14 +290,20 @@ function wtrackt_update_cart_action_cart_updated($cart_updated)
 									'product_id' => $values['product_id'],
 									'quantity' => $values['quantity'],
 									'cart_number' => $last_cart_number,
-									'removed' => false,
 								)
 							);
 						}
 					}
 					WC()->session->set('wtrackt_new_cart', $last_cart_number);
+					error_log('New cart created after session mismatch in update: ' . $last_cart_number);
 				}
 			} else {
+				// Cart exists - update it
+				$cart_update_query = $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}cart_tracking_wc_cart
+                    SET update_time = %s, cart_total = %f
+                 WHERE id = %d", current_time('mysql'), $cart_total, $new_cart));
+
+				// Update individual cart items
 				if (sizeof(WC()->cart->get_cart()) > 0) {
 					foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
 						$_product = $values['data'];
@@ -286,7 +315,9 @@ function wtrackt_update_cart_action_cart_updated($cart_updated)
 							$removed = false;
 							$wpdb->query(
 								$wpdb->prepare(
-									"UPDATE {$wpdb->prefix}cart_tracking_wc\r\n                            SET quantity = %d, removed=%d\r\n                         WHERE product_id = %d AND cart_number = %d",
+									"UPDATE {$wpdb->prefix}cart_tracking_wc
+                            SET quantity = %d, removed=%d
+                         WHERE product_id = %d AND cart_number = %d",
 									$cart_quantity,
 									$removed,
 									$values['product_id'],
@@ -1122,72 +1153,165 @@ function wtrackt_user_login_update($user_login, $user)
 	}
 }
 
+// Helper function to validate and get existing cart or create new one
+if (!function_exists('wtrackt_get_or_create_cart')) {
+	function wtrackt_get_or_create_cart($customer_id = 0, $cart_total = 0.0)
+	{
+		global $wpdb;
+		$table_cart_name = $wpdb->prefix . 'cart_tracking_wc_cart';
+
+		if (!isset(WC()->session)) {
+			return null;
+		}
+
+		$new_cart = WC()->session->get('wtrackt_new_cart');
+
+		// If no cart in session, create new one
+		if (is_null($new_cart)) {
+			return wtrackt_create_new_cart($customer_id, $cart_total);
+		}
+
+		// Verify cart exists in database
+		$existing_cart = $wpdb->get_row(
+			$wpdb->prepare("SELECT id FROM $table_cart_name WHERE id = %d", $new_cart),
+			ARRAY_A
+		);
+
+		if (!$existing_cart) {
+			// Cart session exists but database record is missing - clear session and create new cart
+			WC()->session->__unset('wtrackt_new_cart');
+			error_log('Cart session mismatch detected, clearing session and creating new cart');
+			return wtrackt_create_new_cart($customer_id, $cart_total);
+		}
+
+		return $new_cart;
+	}
+}
+
+// Helper function to create a new cart record
+if (!function_exists('wtrackt_create_new_cart')) {
+	function wtrackt_create_new_cart($customer_id = 0, $cart_total = 0.0)
+	{
+		global $wpdb;
+		$table_cart_name = $wpdb->prefix . 'cart_tracking_wc_cart';
+		$table_name = $wpdb->prefix . 'cart_tracking_wc';
+
+		$carts_insert = array(
+			'update_time' => current_time('mysql'),
+			'creation_time' => current_time('mysql'),
+			'cart_total' => $cart_total,
+			'customer_id' => $customer_id,
+			'cart_status' => 'new',
+			'notification_sent' => 0,
+		);
+
+		if (!is_user_logged_in()) {
+			if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+				$ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];
+			} else {
+				$ip_address = $_SERVER['REMOTE_ADDR'];
+			}
+			$carts_insert['ip_address'] = $ip_address;
+		}
+
+		$wpdb->insert($table_cart_name, $carts_insert);
+		$last_cart_number = $wpdb->insert_id;
+
+		if ($last_cart_number) {
+			// Add current cart items to the tracking table
+			if (isset(WC()->cart) && sizeof(WC()->cart->get_cart()) > 0) {
+				foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
+					$wpdb->insert(
+						$table_name,
+						array(
+							'time' => current_time('mysql'),
+							'product_id' => $values['product_id'],
+							'quantity' => $values['quantity'],
+							'cart_number' => $last_cart_number,
+							'removed' => false,
+						)
+					);
+				}
+			}
+
+			WC()->session->set('wtrackt_new_cart', $last_cart_number);
+			error_log('New cart created: ' . $last_cart_number);
+		}
+
+		return $last_cart_number;
+	}
+}
+
 // Helper function to get customer phone number from multiple sources
-function wtrackt_get_customer_phone($customer_id = 0)
-{
-	$phone = '';
+if (!function_exists('wtrackt_get_customer_phone')) {
+	function wtrackt_get_customer_phone($customer_id = 0)
+	{
+		$phone = '';
 
-	if ($customer_id > 0) {
-		// Try to get phone from user meta (custom fields)
-		$phone_code = get_user_meta($customer_id, 'phone_code', true);
-		$phone_number = get_user_meta($customer_id, 'phone_number', true);
+		if ($customer_id > 0) {
+			// Try to get phone from user meta (custom fields)
+			$phone_code = get_user_meta($customer_id, 'phone_code', true);
+			$phone_number = get_user_meta($customer_id, 'phone_number', true);
 
-		if (!empty($phone_code) && !empty($phone_number)) {
-			$phone = $phone_code . $phone_number;
+			if (!empty($phone_code) && !empty($phone_number)) {
+				$phone = $phone_code . $phone_number;
+			}
+
+			// If still empty, try billing phone from user meta
+			if (empty($phone)) {
+				$phone = get_user_meta($customer_id, 'billing_phone', true);
+			}
+
+			// If still empty, try shipping phone from user meta
+			if (empty($phone)) {
+				$phone = get_user_meta($customer_id, 'shipping_phone', true);
+			}
 		}
 
-		// If still empty, try billing phone from user meta
-		if (empty($phone)) {
-			$phone = get_user_meta($customer_id, 'billing_phone', true);
+		// If still empty and WooCommerce customer is available, get from current session
+		if (empty($phone) && WC()->cart && WC()->cart->get_customer()) {
+			$customer = WC()->cart->get_customer();
+			$phone = $customer->get_billing_phone();
+
+			// Try shipping phone if billing phone is empty
+			if (empty($phone)) {
+				$phone = $customer->get_shipping_phone();
+			}
 		}
 
-		// If still empty, try shipping phone from user meta
-		if (empty($phone)) {
-			$phone = get_user_meta($customer_id, 'shipping_phone', true);
+		// Clean and format phone number
+		if (!empty($phone)) {
+			// Remove any HTML tags or special characters
+			$phone = strip_tags($phone);
+			$phone = preg_replace('/[^0-9+\-\s\(\)]/', '', $phone);
+			$phone = trim($phone);
 		}
+
+		return $phone ?: '';
 	}
-
-	// If still empty and WooCommerce customer is available, get from current session
-	if (empty($phone) && WC()->cart && WC()->cart->get_customer()) {
-		$customer = WC()->cart->get_customer();
-		$phone = $customer->get_billing_phone();
-
-		// Try shipping phone if billing phone is empty
-		if (empty($phone)) {
-			$phone = $customer->get_shipping_phone();
-		}
-	}
-
-	// Clean and format phone number
-	if (!empty($phone)) {
-		// Remove any HTML tags or special characters
-		$phone = strip_tags($phone);
-		$phone = preg_replace('/[^0-9+\-\s\(\)]/', '', $phone);
-		$phone = trim($phone);
-	}
-
-	return $phone ?: '';
 }
 
 // Helper function to extract clean price from HTML formatted price
-function wtrackt_extract_clean_price($html_price)
-{
-	// If it's already a clean number, return it
-	if (is_numeric($html_price)) {
-		return number_format(floatval($html_price), 2, '.', '');
+if (!function_exists('wtrackt_extract_clean_price')) {
+	function wtrackt_extract_clean_price($html_price)
+	{
+		// If it's already a clean number, return it
+		if (is_numeric($html_price)) {
+			return number_format(floatval($html_price), 2, '.', '');
+		}
+
+		// Remove HTML tags first
+		$clean_price = strip_tags($html_price);
+
+		// Extract numbers and decimal/comma separators
+		// This regex will match patterns like: 19,99 or 19.99 or 1999 or 19 99
+		if (preg_match('/(\d+(?:[,.]?\d*)?)/', $clean_price, $matches)) {
+			$price = $matches[1];
+			// Replace comma with dot for decimal separator
+			$price = str_replace(',', '.', $price);
+			return number_format(floatval($price), 2, '.', '');
+		}
+
+		return '0.00';
 	}
-
-	// Remove HTML tags first
-	$clean_price = strip_tags($html_price);
-
-	// Extract numbers and decimal/comma separators
-	// This regex will match patterns like: 19,99 or 19.99 or 1999 or 19 99
-	if (preg_match('/(\d+(?:[,.]?\d*)?)/', $clean_price, $matches)) {
-		$price = $matches[1];
-		// Replace comma with dot for decimal separator
-		$price = str_replace(',', '.', $price);
-		return number_format(floatval($price), 2, '.', '');
-	}
-
-	return '0.00';
 }
