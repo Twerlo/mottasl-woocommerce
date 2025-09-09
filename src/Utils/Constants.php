@@ -56,8 +56,8 @@ class Constants
 	 *
 	 * @var string
 	 */
-	// const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
-	const MOTTASL_API_BASE_URL = 'https://test.hub.mottasl.ai';
+	//const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
+	const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
 	// const MOTTASL_API_BASE_URL = 'http://localhost:3000';
 
 	/**
