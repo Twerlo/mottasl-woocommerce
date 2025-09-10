@@ -4,6 +4,10 @@ use Mottasl\Utils\Constants;
 use Mottasl\Core\MottaslApi;
 
 add_filter('cron_schedules', function ($schedules) {
+	$schedules['every-minute'] = array(
+		'interval' => 60,
+		'display' => __('Every minute')
+	);
 	$schedules['every-15-minutes'] = array(
 		'interval' => 15 * 60,
 		'display' => __('Every 15 minutes')
@@ -12,13 +16,13 @@ add_filter('cron_schedules', function ($schedules) {
 });
 
 if (!wp_next_scheduled('my_function_hook')) {
-	wp_schedule_event(time(), 'every-15-minutes', 'my_function_hook');
+	wp_schedule_event(time(), 'every-minute', 'my_function_hook');
 }
 add_action('my_function_hook', 'my_function');
 
-// Add cron job for cart updates that need notification after 15 minutes
+// Add cron job for cart updates that need notification after the configured duration
 if (!wp_next_scheduled('wtrackt_cart_updates_hook')) {
-	wp_schedule_event(time(), 'every-15-minutes', 'wtrackt_cart_updates_hook');
+	wp_schedule_event(time(), 'every-minute', 'wtrackt_cart_updates_hook');
 }
 add_action('wtrackt_cart_updates_hook', 'wtrackt_process_cart_updates');
 
@@ -41,8 +45,8 @@ function my_function()
 	global $wpdb;
 	$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
 
-	// Define the time limit in minutes
-	$time_limit = 15;
+	// Define the time limit in minutes from constants
+	$time_limit = Constants::CART_ABANDONED_DURATION;
 
 	// SQL to update cart_status to 'abandoned' (no placeholders needed for this query)
 	$sql = "UPDATE $table_name
@@ -52,22 +56,29 @@ function my_function()
 	// Execute the SQL
 	$wpdb->query($sql);
 
-	// Only get carts that are abandoned, haven't been notified yet, and are older than 15 minutes
+	// Only get carts that are abandoned, haven't been notified yet, and are older than the configured duration
 	$abandoned_carts = $wpdb->get_results($wpdb->prepare("
     SELECT * FROM $table_name
     WHERE `cart_status` = %s
     AND `notification_sent` = 0
-    AND `update_time` <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)", 'abandoned'), ARRAY_A);
+    AND `update_time` <= DATE_SUB(NOW(), INTERVAL " . Constants::CART_ABANDONED_DURATION . " MINUTE)", 'abandoned'), ARRAY_A);
 
-	// Also get new carts that haven't been notified and are older than 15 minutes
+	// Also get new carts that haven't been notified and are older than the configured duration
 	$new_carts = $wpdb->get_results($wpdb->prepare("
     SELECT * FROM $table_name
     WHERE `cart_status` = %s
     AND `notification_sent` = 0
-    AND `update_time` <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)", 'new'), ARRAY_A);
+    AND `update_time` <= DATE_SUB(NOW(), INTERVAL " . Constants::CART_ABANDONED_DURATION . " MINUTE)", 'new'), ARRAY_A);
 
 	// Combine both arrays
 	$carts = array_merge($abandoned_carts, $new_carts);
+
+	// Debug logging
+	error_log('Found ' . count($abandoned_carts) . ' abandoned carts and ' . count($new_carts) . ' new carts to process');
+	if (!empty($carts)) {
+		$cart_ids = array_column($carts, 'id');
+		error_log('Cart IDs to process: ' . implode(', ', $cart_ids));
+	}
 
 	if (empty($carts)) {
 		error_log('No carts to process (new or abandoned)');
@@ -258,13 +269,13 @@ function wtrackt_process_cart_updates()
 	global $wpdb;
 	$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
 
-	// Get carts that have been updated and need notification after 15 minutes
+	// Get carts that have been updated and need notification after the configured duration
 	// This includes carts that were updated from abandoned status back to new
 	$updated_carts = $wpdb->get_results("
 		SELECT c1.* FROM $table_name c1
 		WHERE c1.notification_sent = 0
 		AND c1.cart_status = 'new'
-		AND c1.update_time <= DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+		AND c1.update_time <= DATE_SUB(NOW(), INTERVAL " . Constants::CART_ABANDONED_DURATION . " MINUTE)
 		AND EXISTS (
 			SELECT 1 FROM $table_name c2
 			WHERE c2.id = c1.id

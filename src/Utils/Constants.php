@@ -58,7 +58,7 @@ class Constants
 	 */
 	//const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
 	const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
-	// const MOTTASL_API_BASE_URL = 'http://localhost:3000';
+	// const MOTTASL_API_BASE_URL = 'https://042e5cc36435.ngrok-free.app';
 
 	/**
 	 * Mottasl application base URL for redirects
@@ -94,4 +94,12 @@ class Constants
 	 * @var string
 	 */
 	const JWT_SECRET_KEY = 'woocommerce-install';
+
+	/**
+	 * Cart abandonment duration in minutes.
+	 * Time to wait before considering a cart as abandoned and sending notifications.
+	 *
+	 * @var int
+	 */
+	const CART_ABANDONED_DURATION = 15;
 }

@@ -382,7 +382,7 @@ function wtrackt_cart_updated()
 			$price_html = WC()->cart->get_product_price($product);
 			$price_clean = wtrackt_extract_clean_price($price_html);
 			$link = $product->get_permalink($cart_item);
-			
+
 			$products[] = [
 				'product_id' => $product_id,
 				'quantity' => $quantity,
@@ -743,9 +743,9 @@ function wtrackt_send_cart_creation_notification($cart_id)
 		return;
 	}
 
-	// Check if 15 minutes have passed since creation/last update
+	// Check if enough time has passed since creation/last update (using configured duration)
 	$time_diff = time() - strtotime($cart['update_time']);
-	if ($time_diff < 900) { // 900 seconds = 15 minutes
+	if ($time_diff < (Constants::CART_ABANDONED_DURATION * 60)) { // Convert minutes to seconds
 		error_log('Cart creation notification skipped - not enough time passed for cart: ' . $cart_id);
 		return;
 	}
@@ -878,9 +878,9 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 		return;
 	}
 
-	// Check if 15 minutes have passed since last update
+	// Check if enough time has passed since last update (using configured duration)
 	$time_diff = time() - strtotime($cart['update_time']);
-	if ($time_diff < 900) { // 900 seconds = 15 minutes
+	if ($time_diff < (Constants::CART_ABANDONED_DURATION * 60)) { // Convert minutes to seconds
 		error_log('Cart update notification skipped - not enough time passed for cart: ' . $cart_id);
 		return;
 	}
