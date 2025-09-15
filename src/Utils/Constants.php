@@ -57,8 +57,8 @@ class Constants
 	 * @var string
 	 */
 	//const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
-	const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
-	// const MOTTASL_API_BASE_URL = 'https://042e5cc36435.ngrok-free.app';
+	// const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
+	const MOTTASL_API_BASE_URL = 'https://8a25e348dbb6.ngrok-free.app';
 
 	/**
 	 * Mottasl application base URL for redirects
@@ -101,5 +101,13 @@ class Constants
 	 *
 	 * @var int
 	 */
-	const CART_ABANDONED_DURATION = 15;
+	const ABANDONED_CART_TIMEOUT = 5;
+
+	/**
+	 * Maximum number of retry attempts for cart API notifications.
+	 * After this many failed attempts, cart tracking will be stopped.
+	 *
+	 * @var int
+	 */
+	const MAX_RETRY_ATTEMPTS = 3;
 }

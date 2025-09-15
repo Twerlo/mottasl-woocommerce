@@ -65,6 +65,7 @@ class MottaslApi
 	{
 		$business_id = get_option('mottasl_business_id', '');
 		if (empty($business_id)) {
+			error_log('Mottasl Warning: Business ID is not configured. Please set up the business ID in WooCommerce > Settings > General > Mottasl WC.');
 			$business_id = '';
 		}
 		$event_name = isset($data['event_name']) ? $data['event_name'] : 'unknown_event';
@@ -108,7 +109,24 @@ class MottaslApi
 			return ['error' => $response->get_error_message()];
 		}
 
-		return json_decode(wp_remote_retrieve_body($response), true);
+		// Check HTTP status code
+		$status_code = wp_remote_retrieve_response_code($response);
+		$response_body = wp_remote_retrieve_body($response);
+
+		if ($status_code >= 400) {
+			$error_message = 'HTTP ' . $status_code . ' Error';
+			$decoded_response = json_decode($response_body, true);
+			if ($decoded_response && isset($decoded_response['message'])) {
+				$error_message .= ': ' . $decoded_response['message'];
+			} elseif ($decoded_response && isset($decoded_response['error'])) {
+				$error_message .= ': ' . $decoded_response['error'];
+			} else {
+				$error_message .= ': ' . $response_body;
+			}
+			return ['error' => $error_message];
+		}
+
+		return json_decode($response_body, true);
 	}
 
 	/**
@@ -120,6 +138,13 @@ class MottaslApi
 	 */
 	public function post($endpoint, $data = [])
 	{
+		// Check if business ID is configured for cart-related endpoints
+		$business_id = get_option('mottasl_business_id', '');
+		if (empty($business_id) && strpos($endpoint, 'cart') !== false) {
+			error_log('Mottasl API Error: Business ID is required for cart operations. Please configure it in WooCommerce > Settings > General > Mottasl WC.');
+			return ['error' => 'Business ID is not configured. Please set up your Mottasl Business ID in the plugin settings.'];
+		}
+
 		$url = $this->getApiUrl($endpoint);
 		$headers = $this->getHeaders();
 
@@ -147,7 +172,41 @@ class MottaslApi
 			return ['error' => $response->get_error_message()];
 		}
 
-		return json_decode(wp_remote_retrieve_body($response), true);
+		// Check HTTP status code
+		$status_code = wp_remote_retrieve_response_code($response);
+		$response_body = wp_remote_retrieve_body($response);
+
+		error_log('Mottasl API POST response status: ' . $status_code);
+		error_log('Mottasl API POST response body: ' . $response_body);
+
+		$decoded_response = json_decode($response_body, true);
+
+		// Check if response has explicit success indicator
+		if ($decoded_response && isset($decoded_response['success']) && $decoded_response['success'] === true) {
+			// Response indicates success regardless of HTTP status code
+			return $decoded_response;
+		}
+
+		// Check for success based on HTTP status code for APIs that use proper status codes
+		if ($status_code >= 200 && $status_code < 300) {
+			return $decoded_response ?: ['success' => true];
+		}
+
+		// If status code indicates error AND no explicit success, treat as error
+		if ($status_code >= 400) {
+			$error_message = 'HTTP ' . $status_code . ' Error';
+			if ($decoded_response && isset($decoded_response['message'])) {
+				$error_message .= ': ' . $decoded_response['message'];
+			} elseif ($decoded_response && isset($decoded_response['error'])) {
+				$error_message .= ': ' . $decoded_response['error'];
+			} else {
+				$error_message .= ': ' . $response_body;
+			}
+			error_log('Mottasl API POST error: ' . $error_message);
+			return ['error' => $error_message];
+		}
+
+		return $decoded_response;
 	}
 
 	/**
@@ -172,7 +231,24 @@ class MottaslApi
 			return ['error' => $response->get_error_message()];
 		}
 
-		return json_decode(wp_remote_retrieve_body($response), true);
+		// Check HTTP status code
+		$status_code = wp_remote_retrieve_response_code($response);
+		$response_body = wp_remote_retrieve_body($response);
+
+		if ($status_code >= 400) {
+			$error_message = 'HTTP ' . $status_code . ' Error';
+			$decoded_response = json_decode($response_body, true);
+			if ($decoded_response && isset($decoded_response['message'])) {
+				$error_message .= ': ' . $decoded_response['message'];
+			} elseif ($decoded_response && isset($decoded_response['error'])) {
+				$error_message .= ': ' . $decoded_response['error'];
+			} else {
+				$error_message .= ': ' . $response_body;
+			}
+			return ['error' => $error_message];
+		}
+
+		return json_decode($response_body, true);
 	}
 
 	/**

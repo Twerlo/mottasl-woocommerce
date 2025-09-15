@@ -43,10 +43,10 @@ add_action('wtrackt_cleanup_hook', 'wtrackt_cleanup_old_carts');
 function my_function()
 {
 	global $wpdb;
-	$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
+	$table_name = $wpdb->prefix . 'mottasl_cart';
 
 	// Define the time limit in minutes from constants
-	$time_limit = Constants::CART_ABANDONED_DURATION;
+	$time_limit = Constants::ABANDONED_CART_TIMEOUT;
 
 	// SQL to update cart_status to 'abandoned' (no placeholders needed for this query)
 	$sql = "UPDATE $table_name
@@ -57,18 +57,22 @@ function my_function()
 	$wpdb->query($sql);
 
 	// Only get carts that are abandoned, haven't been notified yet, and are older than the configured duration
+	// Also filter out carts that have exceeded max retry attempts
 	$abandoned_carts = $wpdb->get_results($wpdb->prepare("
     SELECT * FROM $table_name
     WHERE `cart_status` = %s
     AND `notification_sent` = 0
-    AND `update_time` <= DATE_SUB(NOW(), INTERVAL " . Constants::CART_ABANDONED_DURATION . " MINUTE)", 'abandoned'), ARRAY_A);
+    AND `try_count` < %d
+    AND `update_time` <= DATE_SUB(NOW(), INTERVAL " . Constants::ABANDONED_CART_TIMEOUT . " MINUTE)", 'abandoned', Constants::MAX_RETRY_ATTEMPTS), ARRAY_A);
 
 	// Also get new carts that haven't been notified and are older than the configured duration
+	// Also filter out carts that have exceeded max retry attempts
 	$new_carts = $wpdb->get_results($wpdb->prepare("
     SELECT * FROM $table_name
     WHERE `cart_status` = %s
     AND `notification_sent` = 0
-    AND `update_time` <= DATE_SUB(NOW(), INTERVAL " . Constants::CART_ABANDONED_DURATION . " MINUTE)", 'new'), ARRAY_A);
+    AND `try_count` < %d
+    AND `update_time` <= DATE_SUB(NOW(), INTERVAL " . Constants::ABANDONED_CART_TIMEOUT . " MINUTE)", 'new', Constants::MAX_RETRY_ATTEMPTS), ARRAY_A);
 
 	// Combine both arrays
 	$carts = array_merge($abandoned_carts, $new_carts);
@@ -138,7 +142,7 @@ function my_function()
 				'email' => $customer_data['email'] ?? '',
 				'first_name' => $customer_data['first_name'] ?? '',
 				'last_name' => $customer_data['last_name'] ?? '',
-				'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+				'phone' => $customer_data['phone'] ?? wtrackt_get_customer_phone($cart['customer_id'])
 			],
 			'billing_address' => [
 				'first_name' => $customer_data['first_name'] ?? '',
@@ -151,7 +155,7 @@ function my_function()
 				'postcode' => '',
 				'country' => '',
 				'email' => $customer_data['email'] ?? '',
-				'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+				'phone' => $customer_data['phone'] ?? wtrackt_get_customer_phone($cart['customer_id'])
 			],
 			'shipping_address' => [
 				'first_name' => $customer_data['first_name'] ?? '',
@@ -187,33 +191,38 @@ function my_function()
 
 	// Send each cart individually with appropriate endpoint
 	$successful_cart_ids = [];
+	$failed_cart_ids = [];
 	foreach ($formatted_carts as $formatted_cart) {
-		// Determine the appropriate API endpoint based on cart status
-		$endpoint = 'abandoned_cart.create';
-		$log_message = 'cart notification';
+		// Determine the appropriate event name and endpoint based on cart status
+		$event_name = 'cart.abandoned';
+		$endpoint = '/cart/abandoned';
+		$log_message = 'cart creation';
 
-		if ($formatted_cart['cart_status'] === 'new') {
-			$endpoint = 'abandoned_cart.create';
-			$log_message = 'new cart notification';
-		} elseif ($formatted_cart['cart_status'] === 'abandoned') {
-			$endpoint = 'abandoned_cart.create'; // Still use create for abandoned carts
-			$log_message = 'abandoned cart notification';
+		if ($formatted_cart['cart_status'] === 'abandoned') {
+			$event_name = 'cart.updated'; // Same event for abandoned carts
+			$endpoint = '/cart/updated';
+			$log_message = 'abandoned cart creation';
 		}
 
-		// Send individual cart object (not array)
-		$response = $api->post($endpoint, $formatted_cart);
+		// Prepare data with new event structure
+		$cart_data = $formatted_cart;
+		$cart_data['event_name'] = $event_name;
 
-		// Track successful submissions
+		// Send individual cart object using new payload format
+		$response = $api->post($endpoint, $cart_data);
+
+		// Track successful and failed submissions
 		if (!isset($response['error'])) {
 			$successful_cart_ids[] = $formatted_cart['cart_id'];
 			error_log('Successfully sent ' . $log_message . ': ' . $formatted_cart['cart_id']);
 		} else {
+			$failed_cart_ids[] = $formatted_cart['cart_id'];
 			// Log the error for debugging
 			error_log('Mottasl API Error for ' . $log_message . ' ' . $formatted_cart['cart_id'] . ': ' . $response['error']);
 		}
 	}
 
-	// Update notification_sent status only for successfully sent carts
+	// Update notification_sent status only for successfully sent carts and set try_count to 1
 	if (!empty($successful_cart_ids)) {
 		// Extract numeric IDs from cart_id format (wc_cart_X)
 		$numeric_ids = [];
@@ -226,13 +235,49 @@ function my_function()
 		if (!empty($numeric_ids)) {
 			$id_placeholders = implode(',', array_fill(0, count($numeric_ids), '%d'));
 			$sql = $wpdb->prepare(
-				"UPDATE {$wpdb->prefix}cart_tracking_wc_cart
-				 SET `notification_sent` = 1
+				"UPDATE {$wpdb->prefix}mottasl_cart
+				 SET `notification_sent` = 1, `try_count` = 1
 				 WHERE `cart_status` IN ('new', 'abandoned') AND `notification_sent` = 0 AND `id` IN ($id_placeholders)",
 				...$numeric_ids
 			);
 			$wpdb->query($sql);
 			error_log('Updated notification_sent status for ' . count($numeric_ids) . ' carts (new and abandoned)');
+		}
+	}
+
+	// Increment try_count for failed carts
+	if (!empty($failed_cart_ids)) {
+		// Extract numeric IDs from cart_id format (wc_cart_X)
+		$failed_numeric_ids = [];
+		foreach ($failed_cart_ids as $cart_id) {
+			if (preg_match('/wc_cart_(\d+)/', $cart_id, $matches)) {
+				$failed_numeric_ids[] = intval($matches[1]);
+			}
+		}
+
+		if (!empty($failed_numeric_ids)) {
+			$id_placeholders = implode(',', array_fill(0, count($failed_numeric_ids), '%d'));
+			$sql = $wpdb->prepare(
+				"UPDATE {$wpdb->prefix}mottasl_cart
+				 SET `try_count` = `try_count` + 1
+				 WHERE `id` IN ($id_placeholders)",
+				...$failed_numeric_ids
+			);
+			$wpdb->query($sql);
+			error_log('Incremented try_count for ' . count($failed_numeric_ids) . ' failed carts');
+
+			// Log carts that have reached max retry attempts and will be excluded from future processing
+			$max_retry_reached = $wpdb->get_results($wpdb->prepare(
+				"SELECT id, try_count FROM {$wpdb->prefix}mottasl_cart
+				 WHERE `try_count` >= %d AND `id` IN ($id_placeholders)",
+				Constants::MAX_RETRY_ATTEMPTS,
+				...$failed_numeric_ids
+			), ARRAY_A);
+
+			if (!empty($max_retry_reached)) {
+				$max_retry_ids = array_column($max_retry_reached, 'id');
+				error_log('Carts reached max retry attempts (' . Constants::MAX_RETRY_ATTEMPTS . ') and will stop tracking: ' . implode(', ', $max_retry_ids));
+			}
 		}
 	}
 }
@@ -241,8 +286,8 @@ function my_function()
 function wtrackt_cleanup_old_carts()
 {
 	global $wpdb;
-	$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
-	$table_items = $wpdb->prefix . 'cart_tracking_wc';
+	$table_name = $wpdb->prefix . 'mottasl_cart';
+	$table_items = $wpdb->prefix . 'mottasl_cart_tracking';
 
 	// Delete carts older than 30 days that are completed or deleted
 	$deleted_carts = $wpdb->query(
@@ -267,20 +312,16 @@ function wtrackt_cleanup_old_carts()
 function wtrackt_process_cart_updates()
 {
 	global $wpdb;
-	$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
+	$table_name = $wpdb->prefix . 'mottasl_cart';
 
-	// Get carts that have been updated and need notification after the configured duration
-	// This includes carts that were updated from abandoned status back to new
+	// Get carts that have been updated and need notification
+	// Filter out carts that have exceeded max retry attempts
 	$updated_carts = $wpdb->get_results("
-		SELECT c1.* FROM $table_name c1
-		WHERE c1.notification_sent = 0
-		AND c1.cart_status = 'new'
-		AND c1.update_time <= DATE_SUB(NOW(), INTERVAL " . Constants::CART_ABANDONED_DURATION . " MINUTE)
-		AND EXISTS (
-			SELECT 1 FROM $table_name c2
-			WHERE c2.id = c1.id
-			AND c2.creation_time < c1.update_time
-		)", ARRAY_A);
+		SELECT * FROM $table_name
+		WHERE cart_status IN ('abandoned', 'deleted')
+		AND notification_sent = 0
+		AND try_count < " . Constants::MAX_RETRY_ATTEMPTS . "
+		AND update_time <= DATE_SUB(NOW(), INTERVAL " . Constants::ABANDONED_CART_TIMEOUT . " MINUTE)", ARRAY_A);
 
 	if (empty($updated_carts)) {
 		error_log('No cart updates to process');
@@ -292,6 +333,7 @@ function wtrackt_process_cart_updates()
 
 	// Process each updated cart
 	$successful_cart_ids = [];
+	$failed_cart_ids = [];
 	foreach ($updated_carts as $cart) {
 		$customer_data = json_decode($cart['customer_data'], true) ?: [];
 		$products = json_decode($cart['products'], true) ?: [];
@@ -324,9 +366,19 @@ function wtrackt_process_cart_updates()
 		// Generate cart token
 		$cart_token = 'wc_cart_token_' . md5($cart['id'] . $cart['creation_time']);
 
-		// Format cart data according to GoLang AbandonedCart struct
-		$formatted_cart = [
-			// Primary fields matching the GoLang struct
+		// Determine event name and endpoint based on cart status
+		$event_name = 'cart.updated';
+		$endpoint = '/cart/updated';
+		$log_message = 'cart update';
+
+		if ($cart['cart_status'] === 'deleted') {
+			$event_name = 'cart.deleted';
+			$endpoint = '/cart/updated'; // Use same endpoint but different event name
+			$log_message = 'cart deletion';
+		}
+
+		// Format cart data with new event structure
+		$cart_data = [
 			'store_url' => $cart['store_url'],
 			'customer_id' => strval($cart['customer_id']),
 			'cart_id' => 'wc_cart_' . $cart['id'],
@@ -337,13 +389,49 @@ function wtrackt_process_cart_updates()
 			'total_price' => number_format(floatval($cart['cart_total']), 2, '.', ''),
 			'total_discount' => '0.00',
 			'line_items' => $line_items,
+			'cart_status' => $cart['cart_status'],
+			'event_name' => $event_name,
 			'customer_data' => [
 				'customer_id' => intval($cart['customer_id']),
 				'email' => $customer_data['email'] ?? '',
 				'first_name' => $customer_data['first_name'] ?? '',
 				'last_name' => $customer_data['last_name'] ?? '',
-				'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+				'phone' => $customer_data['phone'] ?? wtrackt_get_customer_phone($cart['customer_id'])
 			],
+			'billing_address' => [
+				'first_name' => $customer_data['first_name'] ?? '',
+				'last_name' => $customer_data['last_name'] ?? '',
+				'company' => '',
+				'address_1' => '',
+				'address_2' => '',
+				'city' => '',
+				'state' => '',
+				'postcode' => '',
+				'country' => '',
+				'email' => $customer_data['email'] ?? '',
+				'phone' => $customer_data['phone'] ?? wtrackt_get_customer_phone($cart['customer_id'])
+			],
+			'shipping_address' => [
+				'first_name' => $customer_data['first_name'] ?? '',
+				'last_name' => $customer_data['last_name'] ?? '',
+				'company' => '',
+				'address_1' => '',
+				'address_2' => '',
+				'city' => '',
+				'state' => '',
+				'postcode' => '',
+				'country' => ''
+			],
+			'cart_recovery_url' => $cart['store_url'] . '/cart?recover=' . $cart_token,
+			// The abandoned time is set to 5 minutes after creation
+			'abandoned_at' => date('c', strtotime($cart['creation_time']) + Constants::ABANDONED_CART_TIMEOUT * MINUTE_IN_SECONDS),
+
+			// Legacy fields for backward compatibility
+			'id' => strval($cart['id']),
+			'creation_time' => $cart['creation_time'],
+			'update_time' => $cart['update_time'],
+			'cart_total' => number_format(floatval($cart['cart_total']), 2, '.', ''),
+			'order_created' => $cart['order_created'] ?? '',
 			'billing_address' => [
 				'first_name' => $customer_data['first_name'] ?? '',
 				'last_name' => $customer_data['last_name'] ?? '',
@@ -366,45 +454,60 @@ function wtrackt_process_cart_updates()
 				'city' => '',
 				'state' => '',
 				'postcode' => '',
-				'country' => ''
-			],
-			'cart_recovery_url' => $cart['store_url'] . '/cart?recover=' . $cart_token,
-			'cart_status' => 'updated',
-			'abandoned_at' => '',
-
-			// Legacy fields for backward compatibility
-			'id' => strval($cart['id']),
-			'creation_time' => $cart['creation_time'],
-			'update_time' => $cart['update_time'],
-			'cart_total' => number_format(floatval($cart['cart_total']), 2, '.', ''),
-			'order_created' => $cart['order_created'] ?? '',
-			'notification_sent' => strval($cart['notification_sent']),
-			'ip_address' => $cart['ip_address'] ?? null,
-			'products' => $products
+				'country' => '',
+				'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
+			]
 		];
 
-		// Send cart update notification
-		$response = $api->post('abandoned_cart.update', $formatted_cart);
+		// Send cart update/deletion notification
+		$response = $api->post($endpoint, $cart_data);
 
 		if (!isset($response['error'])) {
 			$successful_cart_ids[] = intval($cart['id']);
-			error_log('Successfully sent cart update notification: wc_cart_' . $cart['id']);
+			error_log('Successfully sent ' . $log_message . ': wc_cart_' . $cart['id']);
 		} else {
-			error_log('Mottasl API Error for cart update wc_cart_' . $cart['id'] . ': ' . $response['error']);
+			$failed_cart_ids[] = intval($cart['id']);
+			error_log('Mottasl API Error for ' . $log_message . ' wc_cart_' . $cart['id'] . ': ' . $response['error']);
 		}
 	}
 
-	// Update notification_sent status for successfully sent carts
+	// Update notification_sent status for successfully sent carts and set try_count to 1
 	if (!empty($successful_cart_ids)) {
 		$id_placeholders = implode(',', array_fill(0, count($successful_cart_ids), '%d'));
 		$sql = $wpdb->prepare(
-			"UPDATE {$wpdb->prefix}cart_tracking_wc_cart
-			 SET `notification_sent` = 1
+			"UPDATE {$wpdb->prefix}mottasl_cart
+			 SET `notification_sent` = 1, `try_count` = 1
 			 WHERE `id` IN ($id_placeholders)",
 			...$successful_cart_ids
 		);
 		$wpdb->query($sql);
 		error_log('Updated notification_sent status for ' . count($successful_cart_ids) . ' updated carts');
+	}
+
+	// Increment try_count for failed carts
+	if (!empty($failed_cart_ids)) {
+		$id_placeholders = implode(',', array_fill(0, count($failed_cart_ids), '%d'));
+		$sql = $wpdb->prepare(
+			"UPDATE {$wpdb->prefix}mottasl_cart
+			 SET `try_count` = `try_count` + 1
+			 WHERE `id` IN ($id_placeholders)",
+			...$failed_cart_ids
+		);
+		$wpdb->query($sql);
+		error_log('Incremented try_count for ' . count($failed_cart_ids) . ' failed cart updates');
+
+		// Log carts that have reached max retry attempts
+		$max_retry_reached = $wpdb->get_results($wpdb->prepare(
+			"SELECT id, try_count FROM {$wpdb->prefix}mottasl_cart
+			 WHERE `try_count` >= %d AND `id` IN ($id_placeholders)",
+			Constants::MAX_RETRY_ATTEMPTS,
+			...$failed_cart_ids
+		), ARRAY_A);
+
+		if (!empty($max_retry_reached)) {
+			$max_retry_ids = array_column($max_retry_reached, 'id');
+			error_log('Cart updates reached max retry attempts (' . Constants::MAX_RETRY_ATTEMPTS . ') and will stop tracking: ' . implode(', ', $max_retry_ids));
+		}
 	}
 }
 

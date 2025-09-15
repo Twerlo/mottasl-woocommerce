@@ -77,8 +77,8 @@ class Activator
 		$charset_collate = $wpdb->get_charset_collate();
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-		// Create cart_tracking_wc table
-		$table_name = $wpdb->prefix . 'cart_tracking_wc';
+		// Create mottasl_cart_tracking table
+		$table_name = $wpdb->prefix . 'mottasl_cart_tracking';
 		$sql = "CREATE TABLE $table_name (
 			id bigint(20) NOT NULL AUTO_INCREMENT,
 			time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
@@ -90,8 +90,8 @@ class Activator
 		) $charset_collate;";
 		dbDelta($sql);
 
-		// Create cart_tracking_wc_cart table
-		$table_name = $wpdb->prefix . 'cart_tracking_wc_cart';
+		// Create mottasl_cart table
+		$table_name = $wpdb->prefix . 'mottasl_cart';
 		$sql_cart = "CREATE TABLE $table_name (
 			id bigint(20) NOT NULL AUTO_INCREMENT,
 			creation_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -99,8 +99,9 @@ class Activator
 			cart_total double DEFAULT 0,
 			cart_status varchar(20) DEFAULT 'new',
 			store_url varchar(300) DEFAULT '',
-			order_created bigint(20) DEFAULT 0,
+			order_created boolean DEFAULT false,
 			notification_sent boolean DEFAULT false,
+			try_count int DEFAULT 0,
 			customer_id bigint(20) DEFAULT 0,
 			ip_address varchar(20) DEFAULT NULL,
 			customer_data TEXT DEFAULT NULL,
@@ -109,8 +110,22 @@ class Activator
 		) $charset_collate;";
 		dbDelta($sql_cart);
 
-		// Create cart_tracking_wc_logs table
-		$table_name = $wpdb->prefix . 'cart_tracking_wc_logs';
+		// Add try_count column if it doesn't exist (migration for existing installations)
+		$column_exists = $wpdb->get_results($wpdb->prepare("
+			SELECT COLUMN_NAME
+			FROM INFORMATION_SCHEMA.COLUMNS
+			WHERE TABLE_SCHEMA = %s
+			AND TABLE_NAME = %s
+			AND COLUMN_NAME = 'try_count'
+		", DB_NAME, $table_name));
+
+		if (empty($column_exists)) {
+			$wpdb->query("ALTER TABLE $table_name ADD COLUMN try_count int DEFAULT 0 AFTER notification_sent");
+			error_log('Mottasl: Added try_count column to ' . $table_name);
+		}
+
+		// Create mottasl_cart_logs table
+		$table_name = $wpdb->prefix . 'mottasl_cart_logs';
 		$sql_logs = "CREATE TABLE $table_name (
 			id bigint(20) NOT NULL AUTO_INCREMENT,
 			op_time datetime DEFAULT '0000-00-00 00:00:00',

@@ -40,18 +40,30 @@ class Deactivator
 		//COMMON WOOCOMMERCE METHOD
 		self::wtrackt_drop_table();
 		self::uninstall_merchant();
+
+		// Clean up all cron events
 		$timestamp = wp_next_scheduled('my_function_hook');
 		if ($timestamp) {
 			wp_unschedule_event($timestamp, 'my_function_hook');
+		}
+
+		$timestamp = wp_next_scheduled('wtrackt_cart_updates_hook');
+		if ($timestamp) {
+			wp_unschedule_event($timestamp, 'wtrackt_cart_updates_hook');
+		}
+
+		$timestamp = wp_next_scheduled('wtrackt_cleanup_hook');
+		if ($timestamp) {
+			wp_unschedule_event($timestamp, 'wtrackt_cleanup_hook');
 		}
 	}
 
 	public static function wtrackt_drop_table()
 	{
 		global $wpdb;
-		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'cart_tracking_wc');
-		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'cart_tracking_wc_cart');
-		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'cart_tracking_wc_logs');
+		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'mottasl_cart_tracking');
+		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'mottasl_cart');
+		$wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'mottasl_cart_logs');
 	}
 	private static function uninstall_merchant()
 	{
