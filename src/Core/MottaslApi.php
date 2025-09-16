@@ -155,6 +155,23 @@ class MottaslApi
 			error_log('Mottasl API POST request headers: ' . json_encode($headers));
 			error_log('Mottasl API POST request data (abandoned cart): ' . json_encode($payload));
 		} else {
+			// Extract event name from endpoint for proper event mapping
+			if (!isset($data['event_name'])) {
+				// Map common endpoints to event names
+				$event_mapping = [
+					'order.created' => 'order.created',
+					'order.updated' => 'order.updated',
+					'customer.created' => 'customer.created',
+					'customer.updated' => 'customer.updated',
+					'/cart/created' => 'cart.created',
+					'/cart/updated' => 'cart.updated',
+					'/cart/deleted' => 'cart.deleted',
+					'/cart/abandoned' => 'cart.abandoned'
+				];
+
+				$data['event_name'] = isset($event_mapping[$endpoint]) ? $event_mapping[$endpoint] : $endpoint;
+			}
+
 			// Use standard wrapper format for other endpoints
 			$payload = $this->prepareData($data);
 			error_log('Mottasl API POST request URL: ' . $url);

@@ -170,13 +170,15 @@ class Activator
 			wp_die('This plugin requires WooCommerce to function properly. Please install WooCommerce first.');
 		}
 
-		$consumerKey = get_option('mottasl_consumer_secret') ?? '';
+		$consumerKey = get_option('mottasl_consumer_key') ?? '';
 		$consumerSecret = get_option('mottasl_consumer_secret') ?? '';
 
 		if (!$consumerKey || !$consumerSecret) {
 			update_option('activation_note', 'not valid');
 		} else {
-			self::register_webhooks();
+			// Webhook registration disabled - using manual API calls instead
+			// self::register_webhooks();
+			self::cleanup_existing_webhooks(); // Remove any existing webhooks
 			self::woocommerce_cart_tracking_installation();
 			self::debug_order_hooks();
 		}
@@ -200,7 +202,7 @@ class Activator
 
 		// not required though, it is just for webhook secret
 		$consumer_key = get_option('mottasl_consumer_key');
-		$consumer_secret = get_option('mottasl_consumer_secret');;
+		$consumer_secret = get_option('mottasl_consumer_secret');
 		// Set the webhook status to 'active'
 		$webhook_status = 'active';
 		$webhook_data_store = new \WC_Data_Store('webhook');
@@ -223,7 +225,11 @@ class Activator
 			$api = new MottaslApi();
 			$webhook_url = $api->getApiUrl('/integration/events/woocommerce/' . $webhook_topic);
 			error_log('DEBUG: Registering webhook for topic: ' . $webhook_topic . ' URL: ' . $webhook_url);
-			// Create the webhook data
+
+			// Get business ID for webhook headers
+			$business_id = get_option('mottasl_business_id', '');
+
+			// Create the webhook data with proper headers for Mottasl API authentication
 			$webhook_data = array(
 				'name' => 'Mottasl: ' . $webhook_topic,
 				'topic' => $webhook_topic,
@@ -232,6 +238,11 @@ class Activator
 				'api_version' => 'v3',
 				'secret' => wc_api_hash($consumer_key . $consumer_secret),
 				'user_id' => get_current_user_id(),
+				// Add custom headers for Mottasl API authentication
+				'headers' => array(
+					'Content-Type' => 'application/json',
+					'BUSINESS-ID' => $business_id
+				)
 			);
 
 			// Create a new WC_Webhook instance
@@ -244,5 +255,26 @@ class Activator
 			$webhook->save();
 			error_log('DEBUG: Webhook saved for topic: ' . $webhook_topic . ' | Status: ' . $webhook->get_status() . ' | Delivery URL: ' . $webhook->get_delivery_url());
 		}
+	}
+
+	private static function cleanup_existing_webhooks()
+	{
+		$webhook_data_store = new \WC_Data_Store('webhook');
+		$existing_webhooks = $webhook_data_store->get_all();
+
+		if ($existing_webhooks) {
+			foreach ($existing_webhooks as $hook_id) {
+				$webhook = new \WC_Webhook($hook_id);
+				$name = $webhook->get_name();
+
+				// Remove webhooks created by this plugin
+				if ($name && strpos($name, 'Mottasl: ') === 0) {
+					$webhook->delete(true); // true for force delete
+					error_log('Removed existing Mottasl webhook: ' . $name);
+				}
+			}
+		}
+
+		error_log('Webhook cleanup completed - using manual API calls instead');
 	}
 }

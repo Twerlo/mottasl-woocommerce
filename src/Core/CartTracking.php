@@ -28,6 +28,10 @@ add_action(
 //add_action('woocommerce_before_cart_item_quantity_zero', 'wtrackt_item_quantity_zero');
 add_action('woocommerce_cart_updated', 'wtrackt_cart_updated');
 add_action('woocommerce_store_api_checkout_order_processed', 'wtrackt_new_order');
+// Add hooks for order updates and customer events
+add_action('woocommerce_order_status_changed', 'wtrackt_order_status_changed', 10, 4);
+add_action('user_register', 'wtrackt_customer_created', 10, 1);
+add_action('profile_update', 'wtrackt_customer_updated', 10, 1);
 //add_action( 'woocommerce_cart_item_restored', '');
 add_action(
 	'wp_login',
@@ -520,8 +524,6 @@ function wtrackt_new_order($order_id)
 
 	if (!is_null($new_cart)) {
 		$order = wc_get_order($order_id);
-		$order_data = format_order_items($order_id);
-		$order_data_id = $order_data['id'];
 
 		// Get cart details before updating
 		$cart_details = $wpdb->get_row(
@@ -529,185 +531,103 @@ function wtrackt_new_order($order_id)
 			ARRAY_A
 		);
 
+		// Update cart status to 'completed' and mark order as created
 		$wpdb->update(
 			$table_name,
 			array(
-				'cart_status' => 'completed', // Update cart status to 'completed'
-				'order_created' => true, // Flag that order was created from this cart
+				'cart_status' => 'completed',
+				'order_created' => true,
 			),
 			array(
 				'id' => $new_cart,
 			),
 			array(
-				'%s', // Data format for 'cart_status'
-				'%d' // Data format for 'order_created' (boolean as int)
+				'%s',
+				'%d'
 			),
 			array(
-				'%d' // Format for the WHERE clause
+				'%d'
 			)
 		);
 
-		// Initialize the MottaslApi
+		// Send order data to Mottasl API manually
 		$api = new MottaslApi();
 
-		// Send order created event
-		$order_response = $api->post('order.created?store_url=' . get_bloginfo('url'), $order_data);
-
-		// Send cart completion event with new payload structure
-		if ($cart_details) {
-			$customer_data = json_decode($cart_details['customer_data'], true) ?: [];
-			$products = json_decode($cart_details['products'], true) ?: [];
-
-			// Convert products to line_items format
-			$line_items = [];
-			if (is_array($products)) {
-				foreach ($products as $index => $product) {
-					$clean_price = $product['price'];
-					if (strpos($clean_price, '<span') !== false) {
-						preg_match('/(\d+[,.]?\d*)/', $clean_price, $matches);
-						$clean_price = isset($matches[1]) ? str_replace(',', '.', $matches[1]) : '0.00';
-					}
-
-					$line_items[] = [
-						'id' => ($index + 1) * 1000 + intval($cart_details['id']),
-						'product_id' => intval($product['product_id']),
-						'variant_id' => null,
-						'title' => get_the_title($product['product_id']) ?: 'Product #' . $product['product_id'],
-						'quantity' => intval($product['quantity']),
-						'price' => number_format(floatval($clean_price), 2, '.', ''),
-						'total_price' => number_format(floatval($clean_price) * intval($product['quantity']), 2, '.', ''),
-						'sku' => get_post_meta($product['product_id'], '_sku', true) ?: '',
-						'image_url' => wp_get_attachment_image_url(get_post_thumbnail_id($product['product_id']), 'full') ?: ''
-					];
-				}
-			}
-
-			// Prepare cart completion data
-			$cart_completion_data = [
-				'store_url' => $cart_details['store_url'],
-				'customer_id' => strval($cart_details['customer_id']),
-				'cart_id' => 'wc_cart_' . $cart_details['id'],
-				'cart_token' => 'wc_cart_token_' . md5($cart_details['id'] . $cart_details['creation_time']),
-				'created_at' => date('c', strtotime($cart_details['creation_time'])),
-				'updated_at' => date('c', strtotime($cart_details['update_time'])),
-				'currency' => get_woocommerce_currency(),
-				'total_price' => number_format(floatval($cart_details['cart_total']), 2, '.', ''),
-				'total_discount' => '0.00',
-				'line_items' => $line_items,
-				'cart_status' => 'completed',
-				'order_id' => $order_data_id,
-				'event_name' => 'cart.completed',
-				'customer_data' => [
-					'customer_id' => intval($cart_details['customer_id']),
-					'email' => $customer_data['email'] ?? '',
-					'first_name' => $customer_data['first_name'] ?? '',
-					'last_name' => $customer_data['last_name'] ?? '',
-					'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart_details['customer_id'])
-				]
-			];
-
-			// Send cart completion event
-			$cart_response = $api->post('/cart/completed', $cart_completion_data);
-
-			if (!isset($cart_response['error'])) {
-				error_log('Successfully sent cart completion event for cart: wc_cart_' . $cart_details['id']);
-			} else {
-				error_log('Mottasl API Error for cart completion: ' . $cart_response['error']);
-			}
-		}
-		$products = json_decode($cart_details['products'], true) ?: [];
-
-		// Generate cart token
-		$cart_token = 'wc_cart_token_' . md5($cart_details['id'] . $cart_details['creation_time']);
-
-		// Convert products to line_items format
-		$line_items = [];
-		if (is_array($products)) {
-			foreach ($products as $index => $product) {
-				// Extract clean price (remove HTML)
-				$clean_price = $product['price'];
-				if (strpos($clean_price, '<span') !== false) {
-					preg_match('/(\d+[,.]?\d*)/', $clean_price, $matches);
-					$clean_price = isset($matches[1]) ? str_replace(',', '.', $matches[1]) : '0.00';
-				}
-
-				$line_items[] = [
-					'id' => ($index + 1) * 1000 + intval($cart_details['id']),
-					'product_id' => intval($product['product_id']),
-					'variant_id' => null,
-					'title' => get_the_title($product['product_id']) ?: 'Product #' . $product['product_id'],
-					'quantity' => intval($product['quantity']),
-					'price' => number_format(floatval($clean_price), 2, '.', ''),
-					'total_price' => number_format(floatval($clean_price) * intval($product['quantity']), 2, '.', ''),
-					'sku' => get_post_meta($product['product_id'], '_sku', true) ?: '',
-					'image_url' => wp_get_attachment_image_url(get_post_thumbnail_id($product['product_id']), 'full') ?: ''
-				];
-			}
+		// Format order items
+		$order_items = array();
+		foreach ($order->get_items() as $item_id => $item) {
+			$product = $item->get_product();
+			$order_items[] = array(
+				'product_id' => $item->get_product_id(),
+				'variation_id' => $item->get_variation_id(),
+				'name' => $item->get_name(),
+				'quantity' => $item->get_quantity(),
+				'subtotal' => $item->get_subtotal(),
+				'total' => $item->get_total(),
+				'sku' => $product ? $product->get_sku() : '',
+				'price' => $product ? $product->get_price() : 0
+			);
 		}
 
-		// Format cart data according to GoLang AbandonedCart struct
-		$formatted_cart = [
-			// Primary fields matching the GoLang struct
-			'store_url' => $cart_details['store_url'],
-			'customer_id' => strval($cart_details['customer_id']),
-			'cart_id' => 'wc_cart_' . $cart_details['id'],
-			'cart_token' => $cart_token,
-			'created_at' => date('c', strtotime($cart_details['creation_time'] ?: $cart_details['update_time'])),
-			'updated_at' => date('c', strtotime($cart_details['update_time'])),
-			'currency' => get_woocommerce_currency(),
-			'total_price' => number_format(floatval($cart_details['cart_total']), 2, '.', ''),
-			'total_discount' => '0.00',
-			'line_items' => $line_items,
-			'customer_data' => [
-				'customer_id' => intval($cart_details['customer_id']),
-				'email' => $customer_data['email'] ?? '',
-				'first_name' => $customer_data['first_name'] ?? '',
-				'last_name' => $customer_data['last_name'] ?? '',
-				'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
-			],
-			'billing_address' => [
-				'first_name' => $customer_data['first_name'] ?? '',
-				'last_name' => $customer_data['last_name'] ?? '',
-				'company' => '',
-				'address_1' => '',
-				'address_2' => '',
-				'city' => '',
-				'state' => '',
-				'postcode' => '',
-				'country' => '',
-				'email' => $customer_data['email'] ?? '',
-				'phone' => $customer_data['phone'] ?: wtrackt_get_customer_phone($cart['customer_id'])
-			],
-			'shipping_address' => [
-				'first_name' => $customer_data['first_name'] ?? '',
-				'last_name' => $customer_data['last_name'] ?? '',
-				'company' => '',
-				'address_1' => '',
-				'address_2' => '',
-				'city' => '',
-				'state' => '',
-				'postcode' => '',
-				'country' => ''
-			],
-			'cart_recovery_url' => $cart_details['store_url'] . '/cart?recover=' . $cart_token,
-			'cart_status' => 'completed',
-			'abandoned_at' => '',
+		// Prepare order data
+		$order_data = array(
+			'order_id' => $order_id,
+			'cart_id' => $new_cart,
+			'status' => $order->get_status(),
+			'total' => $order->get_total(),
+			'subtotal' => $order->get_subtotal(),
+			'tax_total' => $order->get_total_tax(),
+			'shipping_total' => $order->get_shipping_total(),
+			'currency' => $order->get_currency(),
+			'customer_id' => $order->get_customer_id(),
+			'customer_email' => $order->get_billing_email(),
+			'customer_first_name' => $order->get_billing_first_name(),
+			'customer_last_name' => $order->get_billing_last_name(),
+			'billing_address' => array(
+				'first_name' => $order->get_billing_first_name(),
+				'last_name' => $order->get_billing_last_name(),
+				'company' => $order->get_billing_company(),
+				'address_1' => $order->get_billing_address_1(),
+				'address_2' => $order->get_billing_address_2(),
+				'city' => $order->get_billing_city(),
+				'state' => $order->get_billing_state(),
+				'postcode' => $order->get_billing_postcode(),
+				'country' => $order->get_billing_country(),
+				'email' => $order->get_billing_email(),
+				'phone' => $order->get_billing_phone()
+			),
+			'shipping_address' => array(
+				'first_name' => $order->get_shipping_first_name(),
+				'last_name' => $order->get_shipping_last_name(),
+				'company' => $order->get_shipping_company(),
+				'address_1' => $order->get_shipping_address_1(),
+				'address_2' => $order->get_shipping_address_2(),
+				'city' => $order->get_shipping_city(),
+				'state' => $order->get_shipping_state(),
+				'postcode' => $order->get_shipping_postcode(),
+				'country' => $order->get_shipping_country()
+			),
+			'line_items' => $order_items,
+			'date_created' => $order->get_date_created()->date('Y-m-d H:i:s'),
+			'date_modified' => $order->get_date_modified()->date('Y-m-d H:i:s')
+		);
 
-			// Legacy fields for backward compatibility
-			'id' => strval($cart_details['id'])
-		];
+		// Send order created event to Mottasl API
+		$response = $api->post('order.created', $order_data);
 
-		// Send cart completion event
-		$cart_response = $api->post('/cart/completed', $cart_completion_data);
-
-		if (!isset($cart_response['error'])) {
-			error_log('Successfully sent cart completion event for cart: wc_cart_' . $cart_details['id']);
+		if ($response) {
+			error_log('Order creation event sent to Mottasl API for order: ' . $order_id . ' and cart: ' . $new_cart);
+			// Set a transient flag to prevent duplicate order.updated event during order creation
+			set_transient('mottasl_order_created_' . $order_id, true, 60); // Expires in 60 seconds
 		} else {
-			error_log('Mottasl API Error for cart completion: ' . $cart_response['error']);
+			error_log('Failed to send order creation event to Mottasl API for order: ' . $order_id);
 		}
-	}
 
-	WC()->session->__unset('wtrackt_new_cart');
+		// Clear the cart from session
+		WC()->session->__unset('wtrackt_new_cart');
+
+		error_log('Successfully processed order creation for cart: ' . $new_cart . ' and order: ' . $order_id);
+	}
 }
 
 // Function to send cart creation notification
@@ -1433,5 +1353,183 @@ if (!function_exists('wtrackt_extract_clean_price')) {
 		}
 
 		return '0.00';
+	}
+}
+
+// Function to handle order status changes
+function wtrackt_order_status_changed($order_id, $old_status, $new_status, $order)
+{
+	// Skip if this is the initial order creation (old_status is empty)
+	// The order.created event will be handled by wtrackt_new_order function
+	if (empty($old_status)) {
+		error_log('Skipping order.updated event for order ' . $order_id . ' - this is initial order creation, order.created event will handle it');
+		return;
+	}
+
+	// Skip if old_status and new_status are the same (no actual change)
+	if ($old_status === $new_status) {
+		error_log('Skipping order.updated event for order ' . $order_id . ' - no status change detected');
+		return;
+	}
+
+	// Skip if we recently sent an order.created event for this order
+	if (get_transient('mottasl_order_created_' . $order_id)) {
+		error_log('Skipping order.updated event for order ' . $order_id . ' - order.created event was recently sent');
+		return;
+	}
+
+	$api = new MottaslApi();
+
+	// Format order items
+	$order_items = array();
+	foreach ($order->get_items() as $item_id => $item) {
+		$product = $item->get_product();
+		$order_items[] = array(
+			'product_id' => $item->get_product_id(),
+			'variation_id' => $item->get_variation_id(),
+			'name' => $item->get_name(),
+			'quantity' => $item->get_quantity(),
+			'subtotal' => $item->get_subtotal(),
+			'total' => $item->get_total(),
+			'sku' => $product ? $product->get_sku() : '',
+			'price' => $product ? $product->get_price() : 0
+		);
+	}
+
+	// Get cart_id from database if available
+	global $wpdb;
+	$table_name = $wpdb->prefix . 'mottasl_cart';
+	$cart_id = $wpdb->get_var(
+		$wpdb->prepare("SELECT id FROM $table_name WHERE order_created = %d AND cart_status = 'completed' ORDER BY id DESC LIMIT 1", true)
+	);
+
+	// Prepare complete order data - same structure as order.created
+	$order_data = array(
+		'order_id' => $order_id,
+		'cart_id' => $cart_id,
+		'status' => $order->get_status(),
+		'old_status' => $old_status,
+		'new_status' => $new_status,
+		'total' => $order->get_total(),
+		'subtotal' => $order->get_subtotal(),
+		'tax_total' => $order->get_total_tax(),
+		'shipping_total' => $order->get_shipping_total(),
+		'currency' => $order->get_currency(),
+		'customer_id' => $order->get_customer_id(),
+		'customer_email' => $order->get_billing_email(),
+		'customer_first_name' => $order->get_billing_first_name(),
+		'customer_last_name' => $order->get_billing_last_name(),
+		'billing_address' => array(
+			'first_name' => $order->get_billing_first_name(),
+			'last_name' => $order->get_billing_last_name(),
+			'company' => $order->get_billing_company(),
+			'address_1' => $order->get_billing_address_1(),
+			'address_2' => $order->get_billing_address_2(),
+			'city' => $order->get_billing_city(),
+			'state' => $order->get_billing_state(),
+			'postcode' => $order->get_billing_postcode(),
+			'country' => $order->get_billing_country(),
+			'email' => $order->get_billing_email(),
+			'phone' => $order->get_billing_phone()
+		),
+		'shipping_address' => array(
+			'first_name' => $order->get_shipping_first_name(),
+			'last_name' => $order->get_shipping_last_name(),
+			'company' => $order->get_shipping_company(),
+			'address_1' => $order->get_shipping_address_1(),
+			'address_2' => $order->get_shipping_address_2(),
+			'city' => $order->get_shipping_city(),
+			'state' => $order->get_shipping_state(),
+			'postcode' => $order->get_shipping_postcode(),
+			'country' => $order->get_shipping_country()
+		),
+		'line_items' => $order_items,
+		'date_created' => $order->get_date_created()->date('Y-m-d H:i:s'),
+		'date_modified' => $order->get_date_modified()->date('Y-m-d H:i:s')
+	);
+
+	// Send order updated event to Mottasl API
+	$response = $api->post('order.updated', $order_data);
+
+	if ($response) {
+		error_log('Order status change event sent to Mottasl API for order: ' . $order_id . ' (from ' . $old_status . ' to ' . $new_status . ')');
+	} else {
+		error_log('Failed to send order status change event to Mottasl API for order: ' . $order_id);
+	}
+} // Function to handle customer creation
+function wtrackt_customer_created($user_id)
+{
+	$api = new MottaslApi();
+	$user = get_userdata($user_id);
+
+	if (!$user) {
+		return;
+	}
+
+	// Prepare customer data
+	$customer_data = array(
+		'customer_id' => $user_id,
+		'username' => $user->user_login,
+		'email' => $user->user_email,
+		'first_name' => get_user_meta($user_id, 'first_name', true),
+		'last_name' => get_user_meta($user_id, 'last_name', true),
+		'date_created' => $user->user_registered,
+		'billing_first_name' => get_user_meta($user_id, 'billing_first_name', true),
+		'billing_last_name' => get_user_meta($user_id, 'billing_last_name', true),
+		'billing_email' => get_user_meta($user_id, 'billing_email', true),
+		'billing_phone' => get_user_meta($user_id, 'billing_phone', true),
+		'billing_address_1' => get_user_meta($user_id, 'billing_address_1', true),
+		'billing_city' => get_user_meta($user_id, 'billing_city', true),
+		'billing_state' => get_user_meta($user_id, 'billing_state', true),
+		'billing_postcode' => get_user_meta($user_id, 'billing_postcode', true),
+		'billing_country' => get_user_meta($user_id, 'billing_country', true)
+	);
+
+	// Send customer created event to Mottasl API
+	$response = $api->post('customer.created', $customer_data);
+
+	if ($response) {
+		error_log('Customer creation event sent to Mottasl API for customer: ' . $user_id);
+	} else {
+		error_log('Failed to send customer creation event to Mottasl API for customer: ' . $user_id);
+	}
+}
+
+// Function to handle customer updates
+function wtrackt_customer_updated($user_id)
+{
+	$api = new MottaslApi();
+	$user = get_userdata($user_id);
+
+	if (!$user) {
+		return;
+	}
+
+	// Prepare customer data
+	$customer_data = array(
+		'customer_id' => $user_id,
+		'username' => $user->user_login,
+		'email' => $user->user_email,
+		'first_name' => get_user_meta($user_id, 'first_name', true),
+		'last_name' => get_user_meta($user_id, 'last_name', true),
+		'date_modified' => current_time('Y-m-d H:i:s'),
+		'billing_first_name' => get_user_meta($user_id, 'billing_first_name', true),
+		'billing_last_name' => get_user_meta($user_id, 'billing_last_name', true),
+		'billing_email' => get_user_meta($user_id, 'billing_email', true),
+		'billing_phone' => get_user_meta($user_id, 'billing_phone', true),
+		'billing_address_1' => get_user_meta($user_id, 'billing_address_1', true),
+		'billing_city' => get_user_meta($user_id, 'billing_city', true),
+		'billing_state' => get_user_meta($user_id, 'billing_state', true),
+		'billing_postcode' => get_user_meta($user_id, 'billing_postcode', true),
+		'billing_country' => get_user_meta($user_id, 'billing_country', true)
+	);
+
+	// Send customer updated event to Mottasl API
+	$response = $api->post('customer.updated', $customer_data);
+
+	if ($response) {
+		error_log('Customer update event sent to Mottasl API for customer: ' . $user_id);
+	} else {
+		error_log('Failed to send customer update event to Mottasl API for customer: ' . $user_id);
 	}
 }
