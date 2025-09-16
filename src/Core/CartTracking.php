@@ -44,7 +44,6 @@ function wtrackt_add_to_cart($cart_item_key, $product_id, $quantity)
 		return;
 	}
 
-	$new_cart = WC()->session->get('wtrackt_new_cart');
 	$table_name = $wpdb->prefix . 'mottasl_cart_tracking';
 	$table_cart_name = $wpdb->prefix . 'mottasl_cart';
 	$cart_total = WC()->cart->get_cart_contents_total();
@@ -52,297 +51,168 @@ function wtrackt_add_to_cart($cart_item_key, $product_id, $quantity)
 
 	if (is_user_logged_in()) {
 		$customer_id = get_current_user_id();
-	} else {
-		if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-			$ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];
-		} else {
-			$ip_address = $_SERVER['REMOTE_ADDR'];
-		}
 	}
 
-	if (is_null($new_cart)) {
-		// Create new cart
-		$carts_insert = array(
+	// Don't create a new cart if the WooCommerce cart is empty (total = 0)
+	if ($cart_total <= 0 || sizeof(WC()->cart->get_cart()) == 0) {
+		error_log('Skipping empty cart creation during add to cart - cart total: ' . $cart_total . ', items: ' . sizeof(WC()->cart->get_cart()));
+		return;
+	}
+
+	// Get or create cart using session-based tracking
+	$cart_id = wtrackt_get_or_create_cart($customer_id, $cart_total);
+
+	if (!$cart_id) {
+		error_log('Failed to get or create cart for add to cart action');
+		return;
+	}
+
+	// Update cart total and reset try_count for new attempts
+	$wpdb->update(
+		$table_cart_name,
+		array(
 			'update_time' => current_time('mysql'),
 			'cart_total' => $cart_total,
 			'customer_id' => $customer_id,
-			'cart_status' => 'new',
-			'notification_sent' => 0,
-			'try_count' => 0,
+			'try_count' => 0, // Reset try_count to allow retry of notifications
+			'notification_sent' => 0 // Reset notification flag
+		),
+		array('id' => $cart_id),
+		array('%s', '%f', '%d', '%d', '%d'),
+		array('%d')
+	);
+
+	// Handle product-specific logic for the cart
+	$sql = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}mottasl_cart_tracking WHERE cart_number = %d AND product_id = %d", $cart_id, $product_id);
+	$results = $wpdb->get_results($sql, ARRAY_A);
+
+	if (count($results) > 0) {
+		// Product already exists in cart, update quantity
+		$cart_quantity = WC()->cart->get_cart()[$cart_item_key]['quantity'];
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$wpdb->prefix}mottasl_cart_tracking
+				SET quantity = %d, removed = %d, time = %s
+				WHERE product_id = %d AND cart_number = %d",
+				$cart_quantity,
+				false,
+				current_time('mysql'),
+				$product_id,
+				$cart_id
+			)
 		);
-		if (!is_user_logged_in()) {
-			$carts_insert['ip_address'] = $ip_address;
-		}
-		$wpdb->insert($table_cart_name, $carts_insert);
-		$last_cart_number = $wpdb->insert_id;
-
-		if ($last_cart_number) {
-			if (sizeof(WC()->cart->get_cart()) > 0) {
-				foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
-					$_product = $values['data'];
-					$wpdb->insert(
-						$table_name,
-						array(
-							'time' => current_time('mysql'),
-							'product_id' => $values['product_id'],
-							'quantity' => $values['quantity'],
-							'cart_number' => $last_cart_number,
-							'removed' => false,
-						)
-					);
-				}
-			}
-			WC()->session->set('wtrackt_new_cart', $last_cart_number);
-
-			// Cart creation notification will be handled by cron job after 15 minutes
-			error_log('New cart created, will be processed by cron job: ' . $last_cart_number);
-		}
+		error_log('Updated product in cart: ' . $product_id . ' in cart: ' . $cart_id);
 	} else {
-		// Update existing cart - first verify cart exists in database
-		$existing_cart = $wpdb->get_row(
-			$wpdb->prepare("SELECT id FROM $table_cart_name WHERE id = %d", $new_cart),
-			ARRAY_A
+		// Add new product to cart
+		$wpdb->insert(
+			$table_name,
+			array(
+				'time' => current_time('mysql'),
+				'product_id' => $product_id,
+				'quantity' => $quantity,
+				'cart_number' => $cart_id,
+				'removed' => false,
+			)
 		);
-
-		if (!$existing_cart) {
-			// Cart session exists but database record is missing - clear session and create new cart
-			WC()->session->__unset('wtrackt_new_cart');
-			error_log('Cart session mismatch detected, clearing session and creating new cart');
-
-			// Create new cart
-			$carts_insert = array(
-				'update_time' => current_time('mysql'),
-				'cart_total' => $cart_total,
-				'customer_id' => $customer_id,
-				'cart_status' => 'new',
-				'notification_sent' => 0,
-				'try_count' => 0,
-			);
-			if (!is_user_logged_in()) {
-				$carts_insert['ip_address'] = $ip_address;
-			}
-			$wpdb->insert($table_cart_name, $carts_insert);
-			$last_cart_number = $wpdb->insert_id;
-
-			if ($last_cart_number) {
-				if (sizeof(WC()->cart->get_cart()) > 0) {
-					foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
-						$_product = $values['data'];
-						$wpdb->insert(
-							$table_name,
-							array(
-								'time' => current_time('mysql'),
-								'product_id' => $values['product_id'],
-								'quantity' => $values['quantity'],
-								'cart_number' => $last_cart_number,
-								'removed' => false,
-							)
-						);
-					}
-				}
-				WC()->session->set('wtrackt_new_cart', $last_cart_number);
-				error_log('New cart created after session mismatch: ' . $last_cart_number);
-			}
-		} else {
-			// Cart exists - update it properly
-			$cart_update_query = $wpdb->query(
-				$wpdb->prepare(
-					"UPDATE $table_cart_name
-					SET update_time = %s, cart_total = %f
-					WHERE id = %d",
-					current_time('mysql'),
-					$cart_total,
-					$new_cart
-				)
-			);
-
-			// Handle product-specific logic for the existing cart
-			$sql = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}mottasl_cart_tracking WHERE cart_number = %d AND product_id = %d", $new_cart, $product_id);
-			$results = $wpdb->get_results($sql, ARRAY_A);
-
-			if (count($results) > 0) {
-				$cart_quantity = WC()->cart->get_cart()[$cart_item_key]['quantity'];
-				$removed = false;
-				$wpdb->query(
-					$wpdb->prepare(
-						"UPDATE {$wpdb->prefix}mottasl_cart_tracking
-						SET quantity = %d, removed = %d
-						WHERE product_id = %d AND cart_number = %d",
-						$cart_quantity,
-						$removed,
-						$product_id,
-						$new_cart
-					)
-				);
-			} else {
-				$wpdb->insert(
-					$table_name,
-					array(
-						'time' => current_time('mysql'),
-						'product_id' => $product_id,
-						'quantity' => $quantity,
-						'cart_number' => $new_cart,
-						'removed' => false,
-					)
-				);
-			}
-		}
+		error_log('Added new product to cart: ' . $product_id . ' in cart: ' . $cart_id);
 	}
+
+	// Store cart ID in session
+	WC()->session->set('wtrackt_new_cart', $cart_id);
+
+	// Send cart update notification to API
+	wtrackt_send_cart_update_notification($cart_id, null);
 }
 
 function wtrackt_update_cart_action_cart_updated($cart_updated)
 {
-
 	if ($cart_updated) {
 		global $wpdb;
 		if (!isset(WC()->session)) {
 			return;
 		}
-		$new_cart = WC()->session->get('wtrackt_new_cart');
+
 		$table_name = $wpdb->prefix . 'mottasl_cart_tracking';
 		$table_cart_name = $wpdb->prefix . 'mottasl_cart';
 		$cart_total = WC()->cart->get_cart_contents_total();
 		$customer_id = 0;
+
 		if (is_user_logged_in()) {
 			$customer_id = get_current_user_id();
 		}
 
-		if (is_null($new_cart)) {
-			$carts_insert = array(
+		// Don't create a new cart if the WooCommerce cart is empty (total = 0)
+		if ($cart_total <= 0 || sizeof(WC()->cart->get_cart()) == 0) {
+			error_log('Skipping empty cart creation during cart update - cart total: ' . $cart_total . ', items: ' . sizeof(WC()->cart->get_cart()));
+			return;
+		}
+
+		// Get or create cart using session-based tracking
+		$cart_id = wtrackt_get_or_create_cart($customer_id, $cart_total);
+
+		if (!$cart_id) {
+			error_log('Failed to get or create cart for cart update action');
+			return;
+		}
+
+		// Update cart data and reset try_count for new attempts
+		$wpdb->update(
+			$table_cart_name,
+			array(
 				'update_time' => current_time('mysql'),
-				'creation_time' => current_time('mysql'),
 				'cart_total' => $cart_total,
 				'customer_id' => $customer_id,
-				"notification_sent" => false,
-				'try_count' => 0,
-			);
+				'notification_sent' => 0,
+				'try_count' => 0, // Reset try_count to allow retry of notifications
+			),
+			array('id' => $cart_id),
+			array('%s', '%f', '%d', '%d', '%d'),
+			array('%d')
+		);
 
-			if (!is_user_logged_in()) {
+		// Update individual cart items
+		if (sizeof(WC()->cart->get_cart()) > 0) {
+			foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
+				$cart_quantity = WC()->cart->get_cart()[$cart_item_key]['quantity'];
+				$sql = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}mottasl_cart_tracking WHERE cart_number = %d AND product_id = %d", $cart_id, $values['product_id']);
+				$results = $wpdb->get_results($sql, ARRAY_A);
 
-				if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-					$ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];
+				if (count($results) > 0) {
+					// Update existing product
+					$wpdb->query(
+						$wpdb->prepare(
+							"UPDATE {$wpdb->prefix}mottasl_cart_tracking
+							SET quantity = %d, removed = %d, time = %s
+							WHERE product_id = %d AND cart_number = %d",
+							$cart_quantity,
+							false,
+							current_time('mysql'),
+							$values['product_id'],
+							$cart_id
+						)
+					);
 				} else {
-					$ip_address = $_SERVER['REMOTE_ADDR'];
-				}
-
-				$carts_insert['ip_address'] = $ip_address;
-			}
-
-			$wpdb->insert($table_cart_name, $carts_insert);
-			$last_cart_number = $wpdb->insert_id;
-
-			if ($last_cart_number) {
-				if (sizeof(WC()->cart->get_cart()) > 0) {
-					foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
-						$_product = $values['data'];
-						$wpdb->insert(
-							$table_name,
-							array(
-								'time' => current_time('mysql'),
-								'product_id' => $values['product_id'],
-								'quantity' => $values['quantity'],
-								'cart_number' => $last_cart_number,
-							)
-						);
-					}
-				}
-				WC()->session->set('wtrackt_new_cart', $last_cart_number);
-			}
-		} else {
-			// Update existing cart - first verify cart exists in database
-			$existing_cart = $wpdb->get_row(
-				$wpdb->prepare("SELECT id FROM $table_cart_name WHERE id = %d", $new_cart),
-				ARRAY_A
-			);
-
-			if (!$existing_cart) {
-				// Cart session exists but database record is missing - clear session and create new cart
-				WC()->session->__unset('wtrackt_new_cart');
-				error_log('Cart session mismatch detected in cart update, clearing session and creating new cart');
-
-				// Create new cart
-				$carts_insert = array(
-					'update_time' => current_time('mysql'),
-					'creation_time' => current_time('mysql'),
-					'cart_total' => $cart_total,
-					'customer_id' => $customer_id,
-					'cart_status' => 'new',
-					'notification_sent' => 0,
-					'try_count' => 0,
-				);
-				if (!is_user_logged_in()) {
-					if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-						$ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];
-					} else {
-						$ip_address = $_SERVER['REMOTE_ADDR'];
-					}
-					$carts_insert['ip_address'] = $ip_address;
-				}
-
-				$wpdb->insert($table_cart_name, $carts_insert);
-				$last_cart_number = $wpdb->insert_id;
-
-				if ($last_cart_number) {
-					if (sizeof(WC()->cart->get_cart()) > 0) {
-						foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
-							$_product = $values['data'];
-							$wpdb->insert(
-								$table_name,
-								array(
-									'time' => current_time('mysql'),
-									'product_id' => $values['product_id'],
-									'quantity' => $values['quantity'],
-									'cart_number' => $last_cart_number,
-								)
-							);
-						}
-					}
-					WC()->session->set('wtrackt_new_cart', $last_cart_number);
-					error_log('New cart created after session mismatch in update: ' . $last_cart_number);
-				}
-			} else {
-				// Cart exists - update it
-				$cart_update_query = $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}mottasl_cart
-                    SET update_time = %s, cart_total = %f
-                 WHERE id = %d", current_time('mysql'), $cart_total, $new_cart));
-
-				// Update individual cart items
-				if (sizeof(WC()->cart->get_cart()) > 0) {
-					foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
-						$_product = $values['data'];
-						$cart_quantity = WC()->cart->get_cart()[$cart_item_key]['quantity'];
-						$sql = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}mottasl_cart_tracking WHERE cart_number = %d AND product_id = %d", $new_cart, $values['product_id']);
-						$results = $wpdb->get_results($sql, ARRAY_A);
-
-						if (count($results) > 0) {
-							$removed = false;
-							$wpdb->query(
-								$wpdb->prepare(
-									"UPDATE {$wpdb->prefix}mottasl_cart_tracking
-                            SET quantity = %d, removed=%d
-                         WHERE product_id = %d AND cart_number = %d",
-									$cart_quantity,
-									$removed,
-									$values['product_id'],
-									$new_cart
-								)
-							);
-						} else {
-							$wpdb->insert(
-								$table_name,
-								array(
-									'time' => current_time('mysql'),
-									'product_id' => $values['product_id'],
-									'quantity' => $cart_quantity,
-									'cart_number' => $new_cart,
-									'removed' => false,
-								)
-							);
-						}
-					}
+					// Add new product
+					$wpdb->insert(
+						$table_name,
+						array(
+							'time' => current_time('mysql'),
+							'product_id' => $values['product_id'],
+							'quantity' => $cart_quantity,
+							'cart_number' => $cart_id,
+							'removed' => false,
+						)
+					);
 				}
 			}
 		}
+
+		// Store cart ID in session
+		WC()->session->set('wtrackt_new_cart', $cart_id);
+		error_log('Cart updated via cart action: ' . $cart_id);
+
+		// Send cart update notification to API
+		wtrackt_send_cart_update_notification($cart_id, null);
 	}
 }
 
@@ -352,96 +222,114 @@ function wtrackt_cart_updated()
 	if (!isset(WC()->session)) {
 		return;
 	}
-	$new_cart = WC()->session->get('wtrackt_new_cart');
-	$table_name = $wpdb->prefix . 'mottasl_cart_tracking';
+
 	$table_cart_name = $wpdb->prefix . 'mottasl_cart';
 	$cart_total = WC()->cart->get_cart_contents_total();
 	$customer_id = get_current_user_id();
 
-	if ($cart_total != 0 && !is_null($new_cart)) {
-		// Get previous cart data to compare for actual changes
-		$previous_cart = $wpdb->get_row(
-			$wpdb->prepare("SELECT * FROM $table_cart_name WHERE id = %d", $new_cart),
-			ARRAY_A
+	if ($cart_total == 0) {
+		error_log('Skipping cart update for empty cart');
+		return;
+	}
+
+	// Get existing cart using session-based tracking
+	$cart_id = wtrackt_get_or_create_cart($customer_id, $cart_total);
+
+	if (!$cart_id) {
+		error_log('Failed to get or create cart for cart updated action');
+		return;
+	}
+
+	// Get previous cart data to compare for actual changes
+	$previous_cart = $wpdb->get_row(
+		$wpdb->prepare("SELECT * FROM $table_cart_name WHERE id = %d", $cart_id),
+		ARRAY_A
+	);
+
+	if (!$previous_cart) {
+		error_log('Cart not found in database: ' . $cart_id);
+		return;
+	}
+
+	$customer_data = [
+		'first_name' => WC()->cart->get_customer()->get_billing_first_name(),
+		'last_name' => WC()->cart->get_customer()->get_billing_last_name(),
+		'email' => WC()->cart->get_customer()->get_billing_email(),
+		'customer_id' => $customer_id,
+		'phone' => wtrackt_get_customer_phone($customer_id),
+	];
+	$products = [];
+
+	foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+		$product = $cart_item['data'];
+		$product_id = $cart_item['product_id'];
+		$quantity = $cart_item['quantity'];
+		$price_html = WC()->cart->get_product_price($product);
+		$price_clean = wtrackt_extract_clean_price($price_html);
+		$link = $product->get_permalink($cart_item);
+
+		$products[] = [
+			'product_id' => $product_id,
+			'quantity' => $quantity,
+			'price' => $price_clean,
+			'price_html' => $price_html,
+			'link' => $link,
+		];
+	}
+
+	// Check if there are actual meaningful changes before updating
+	$has_changes = false;
+
+	// Check if cart total changed significantly (more than 0.01 difference)
+	if (abs(floatval($previous_cart['cart_total']) - $cart_total) > 0.01) {
+		$has_changes = true;
+	}
+
+	// Check if products changed (compare serialized data)
+	$previous_products = json_decode($previous_cart['products'], true) ?: [];
+	if (json_encode($products) !== json_encode($previous_products)) {
+		$has_changes = true;
+	}
+
+	// Check if customer data changed
+	$previous_customer_data = json_decode($previous_cart['customer_data'], true) ?: [];
+	if (json_encode($customer_data) !== json_encode($previous_customer_data)) {
+		$has_changes = true;
+	}
+
+	// Only update if there are actual changes
+	if ($has_changes) {
+		// Update cart data and reset try_count for new attempts
+		$wpdb->update(
+			$table_cart_name,
+			array(
+				'cart_total' => $cart_total,
+				'customer_data' => json_encode($customer_data),
+				'products' => json_encode($products),
+				'store_url' => get_bloginfo('url'),
+				'update_time' => current_time('mysql'),
+				'notification_sent' => 0, // Reset notification flag for updates
+				'try_count' => 0, // Reset try_count to allow retry of notifications
+			),
+			array('id' => $cart_id),
+			array(
+				'%f',
+				'%s',
+				'%s',
+				'%s',
+				'%s',
+				'%d',
+				'%d',
+			),
+			array('%d')
 		);
 
-		if (!$previous_cart) {
-			return;
-		}
+		error_log('Cart updated with meaningful changes: ' . $cart_id);
 
-		$customer_data = [
-			'first_name' => WC()->cart->get_customer()->get_billing_first_name(),
-			'last_name' => WC()->cart->get_customer()->get_billing_last_name(),
-			'email' => WC()->cart->get_customer()->get_billing_email(),
-			'customer_id' => $customer_id,
-			'phone' => wtrackt_get_customer_phone($customer_id),
-		];
-		$products = [];
-
-		foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-			$product = $cart_item['data'];
-			$product_id = $cart_item['product_id'];
-			$quantity = $cart_item['quantity'];
-			$price_html = WC()->cart->get_product_price($product);
-			$price_clean = wtrackt_extract_clean_price($price_html);
-			$link = $product->get_permalink($cart_item);
-
-			$products[] = [
-				'product_id' => $product_id,
-				'quantity' => $quantity,
-				'price' => $price_clean,
-				'price_html' => $price_html,
-				'link' => $link,
-			];
-		}
-
-		// Check if there are actual meaningful changes before updating
-		$has_changes = false;
-
-		// Check if cart total changed significantly (more than 0.01 difference)
-		if (abs(floatval($previous_cart['cart_total']) - $cart_total) > 0.01) {
-			$has_changes = true;
-		}
-
-		// Check if products changed (compare serialized data)
-		$previous_products = json_decode($previous_cart['products'], true) ?: [];
-		if (json_encode($products) !== json_encode($previous_products)) {
-			$has_changes = true;
-		}
-
-		// Check if customer data changed
-		$previous_customer_data = json_decode($previous_cart['customer_data'], true) ?: [];
-		if (json_encode($customer_data) !== json_encode($previous_customer_data)) {
-			$has_changes = true;
-		}
-
-		// Only update if there are actual changes
-		if ($has_changes) {
-			// Update cart data
-			$wpdb->update(
-				$table_cart_name,
-				array(
-					'cart_total' => $cart_total,
-					'customer_data' => json_encode($customer_data),
-					'products' => json_encode($products),
-					'store_url' => get_bloginfo('url'),
-					'update_time' => current_time('mysql'),
-					'cart_status' => 'new', // Reset to new when updated
-					'notification_sent' => 0, // Reset notification flag for updates
-				),
-				array('id' => $new_cart),
-				array(
-					'%f',
-					'%s',
-					'%s',
-					'%s',
-					'%s',
-					'%s',
-					'%d',
-				),
-				array('%d')
-			);
-		}
+		// Send cart update notification to API
+		wtrackt_send_cart_update_notification($cart_id, $previous_cart);
+	} else {
+		error_log('No meaningful changes detected for cart: ' . $cart_id);
 	}
 }
 
@@ -452,86 +340,108 @@ function wtrackt_cart_item_removed($cart_item_key, $cart)
 	if (!isset(WC()->session)) {
 		return;
 	}
-	$new_cart = WC()->session->get('wtrackt_new_cart');
+
 	$table_name = $wpdb->prefix . 'mottasl_cart_tracking';
 	$table_cart_name = $wpdb->prefix . 'mottasl_cart';
 	$cart_total = WC()->cart->total;
 	$customer_id = 0;
+
 	if (is_user_logged_in()) {
 		$customer_id = get_current_user_id();
 	}
 
-	if (is_null($new_cart)) {
-		$carts_insert = array(
+	// Check if cart becomes empty after removal
+	if ($cart_total <= 0 || sizeof(WC()->cart->get_cart()) == 0) {
+		error_log('Cart is empty after item removal - cart total: ' . $cart_total . ', items: ' . sizeof(WC()->cart->get_cart()));
+
+		// Get current cart if exists
+		$session_id = wtrackt_get_session_id();
+		if ($session_id) {
+			$existing_cart_id = wtrackt_find_cart_by_session($session_id, $customer_id);
+			if ($existing_cart_id) {
+				// Send deletion notification and mark as deleted
+				wtrackt_send_cart_deletion_notification($existing_cart_id);
+				$wpdb->update(
+					$table_cart_name,
+					array('cart_status' => 'deleted', 'update_time' => current_time('mysql')),
+					array('id' => $existing_cart_id),
+					array('%s', '%s'),
+					array('%d')
+				);
+				error_log('Marked cart as deleted due to empty cart: ' . $existing_cart_id);
+
+				// Clear session
+				WC()->session->__unset('wtrackt_new_cart');
+			}
+		}
+		return;
+	}
+
+	// Get or create cart using session-based tracking
+	$cart_id = wtrackt_get_or_create_cart($customer_id, $cart_total);
+
+	if (!$cart_id) {
+		error_log('Failed to get or create cart for item removal');
+		return;
+	}
+
+	// Mark the specific product as removed
+	$removed = true;
+	$wpdb->query(
+		$wpdb->prepare(
+			"UPDATE {$wpdb->prefix}mottasl_cart_tracking
+			SET removed = %d, time = %s
+			WHERE product_id = %d AND cart_number = %d",
+			$removed,
+			current_time('mysql'),
+			$product_id,
+			$cart_id
+		)
+	);
+
+	// Update cart total and reset try_count for new attempts
+	$wpdb->update(
+		$table_cart_name,
+		array(
 			'update_time' => current_time('mysql'),
 			'cart_total' => $cart_total,
-			'customer_id' => $customer_id,
-			'try_count' => 0,
+			'try_count' => 0, // Reset try_count to allow retry of notifications
+			'notification_sent' => 0 // Reset notification flag
+		),
+		array('id' => $cart_id),
+		array('%s', '%f', '%d', '%d'),
+		array('%d')
+	);
+
+	// Check if all items are now removed (cart is empty)
+	$remaining_items = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->prefix}mottasl_cart_tracking WHERE cart_number = %d AND removed = 0",
+			$cart_id
+		)
+	);
+
+	if ($remaining_items == 0) {
+		// Send deletion notification before marking as deleted
+		wtrackt_send_cart_deletion_notification($cart_id);
+
+		// Mark cart as deleted
+		$wpdb->update(
+			$table_cart_name,
+			array('cart_status' => 'deleted', 'update_time' => current_time('mysql')),
+			array('id' => $cart_id),
+			array('%s', '%s'),
+			array('%d')
 		);
+		error_log('Cart marked as deleted due to all items being removed: ' . $cart_id);
 
-		if (!is_user_logged_in()) {
-
-			if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-				$ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];
-			} else {
-				$ip_address = $_SERVER['REMOTE_ADDR'];
-			}
-
-			$carts_insert['ip_address'] = $ip_address;
-		}
-
-		$wpdb->insert($table_cart_name, $carts_insert);
-		$last_cart_number = $wpdb->insert_id;
-
-		if ($last_cart_number) {
-			if (sizeof(WC()->cart->get_cart()) > 0) {
-				foreach (WC()->cart->get_cart() as $cart_item_key => $values) {
-					$_product = $values['data'];
-					$removed = ($product_id === $values['product_id'] ? true : false);
-					$wpdb->insert(
-						$table_name,
-						array(
-							'time' => current_time('mysql'),
-							'product_id' => $values['product_id'],
-							'quantity' => $values['quantity'],
-							'cart_number' => $last_cart_number,
-							'removed' => $removed,
-						)
-					);
-				}
-			}
-			WC()->session->set('wtrackt_new_cart', $last_cart_number);
-		}
+		// Clear session
+		WC()->session->__unset('wtrackt_new_cart');
 	} else {
-		$removed = true;
-		$wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$wpdb->prefix}mottasl_cart_tracking\r\n                    SET removed = %d\r\n                 WHERE product_id = %d AND cart_number = %d",
-				$removed,
-				$product_id,
-				$new_cart
-			)
-		);
+		error_log('Product removed from cart: ' . $product_id . ' in cart: ' . $cart_id . ' (' . $remaining_items . ' items remaining)');
 
-		// Check if all items are now removed (cart is empty)
-		$remaining_items = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$wpdb->prefix}mottasl_cart_tracking WHERE cart_number = %d AND removed = 0",
-				$new_cart
-			)
-		);
-
-		if ($remaining_items == 0) {
-			// Mark cart as deleted
-			$wpdb->update(
-				$table_cart_name,
-				array('cart_status' => 'deleted', 'update_time' => current_time('mysql')),
-				array('id' => $new_cart),
-				array('%s', '%s'),
-				array('%d')
-			);
-			error_log('Cart marked as deleted due to all items being removed: ' . $new_cart);
-		}
+		// Send cart update notification to API
+		wtrackt_send_cart_update_notification($cart_id, null);
 	}
 }
 function format_order_items($order_id)
@@ -907,7 +817,7 @@ function wtrackt_send_cart_creation_notification($cart_id)
 	$api = new MottaslApi();
 
 	// Send cart creation notification with new endpoint
-	$response = $api->post('/cart/abandoned', $cart_data);
+	$response = $api->post('/cart/created', $cart_data);
 
 	if (!isset($response['error'])) {
 		error_log('Successfully sent cart creation notification for cart: ' . $cart_id);
@@ -941,12 +851,8 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 		return;
 	}
 
-	// Check if enough time has passed since last update (using configured duration)
-	$time_diff = time() - strtotime($cart['update_time']);
-	if ($time_diff < (Constants::ABANDONED_CART_TIMEOUT * 60)) { // Convert minutes to seconds
-		error_log('Cart update notification skipped - not enough time passed for cart: ' . $cart_id);
-		return;
-	}
+	// Cart update notifications should be sent immediately, not delayed
+	// The time check is only for cart creation notifications (abandoned cart detection)
 
 	$customer_data = json_decode($cart['customer_data'], true) ?: [];
 	$products = json_decode($cart['products'], true) ?: [];
@@ -979,8 +885,8 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 		}
 	}
 
-	// Format cart data according to GoLang AbandonedCart struct
-	$formatted_cart = [
+	// Format cart data with new event structure
+	$cart_data = [
 		// Primary fields matching the GoLang struct
 		'store_url' => $cart['store_url'],
 		'customer_id' => strval($cart['customer_id']),
@@ -992,6 +898,8 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 		'total_price' => number_format(floatval($cart['cart_total']), 2, '.', ''),
 		'total_discount' => '0.00',
 		'line_items' => $line_items,
+		'cart_status' => 'updated',
+		'event_name' => 'cart.updated',
 		'customer_data' => [
 			'customer_id' => intval($cart['customer_id']),
 			'email' => $customer_data['email'] ?? '',
@@ -1024,8 +932,7 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 			'country' => ''
 		],
 		'cart_recovery_url' => $cart['store_url'] . '/cart?recover=' . $cart_token,
-		'cart_status' => 'updated',
-		'abandoned_at' => '',
+		'abandoned_at' => date('c', strtotime($cart['creation_time']) + Constants::ABANDONED_CART_TIMEOUT * MINUTE_IN_SECONDS),
 
 		// Legacy fields for backward compatibility
 		'id' => strval($cart['id']),
@@ -1036,14 +943,14 @@ function wtrackt_send_cart_update_notification($cart_id, $previous_cart)
 		'notification_sent' => strval($cart['notification_sent'] ?? '0'),
 		'ip_address' => $cart['ip_address'] ?? null,
 		'products' => $products,
-		'previous_status' => $previous_cart['cart_status']
+		'previous_status' => $previous_cart ? $previous_cart['cart_status'] : $cart['cart_status']
 	];
 
 	// Initialize the MottaslApi
 	$api = new MottaslApi();
 
-	// Send cart update notification
-	$response = $api->post('abandoned_cart.update', $formatted_cart);
+	// Send cart update notification with new endpoint
+	$response = $api->post('/cart/updated', $cart_data);
 
 	if (!isset($response['error'])) {
 		error_log('Successfully sent cart update notification for cart: ' . $cart_id);
@@ -1108,8 +1015,8 @@ function wtrackt_send_cart_deletion_notification($cart_id)
 		}
 	}
 
-	// Format cart data according to GoLang AbandonedCart struct
-	$formatted_cart = [
+	// Format cart data with new event structure
+	$cart_data = [
 		// Primary fields matching the GoLang struct
 		'store_url' => $cart['store_url'],
 		'customer_id' => strval($cart['customer_id']),
@@ -1121,6 +1028,8 @@ function wtrackt_send_cart_deletion_notification($cart_id)
 		'total_price' => number_format(floatval($cart['cart_total']), 2, '.', ''),
 		'total_discount' => '0.00',
 		'line_items' => $line_items,
+		'cart_status' => 'deleted',
+		'event_name' => 'cart.deleted',
 		'customer_data' => [
 			'customer_id' => intval($cart['customer_id']),
 			'email' => $customer_data['email'] ?? '',
@@ -1153,8 +1062,7 @@ function wtrackt_send_cart_deletion_notification($cart_id)
 			'country' => ''
 		],
 		'cart_recovery_url' => $cart['store_url'] . '/cart?recover=' . $cart_token,
-		'cart_status' => 'deleted',
-		'abandoned_at' => '',
+		'abandoned_at' => date('c', strtotime($cart['creation_time']) + Constants::ABANDONED_CART_TIMEOUT * MINUTE_IN_SECONDS),
 
 		// Legacy fields for backward compatibility
 		'id' => strval($cart['id']),
@@ -1172,8 +1080,8 @@ function wtrackt_send_cart_deletion_notification($cart_id)
 	// Initialize the MottaslApi
 	$api = new MottaslApi();
 
-	// Send cart deletion notification
-	$response = $api->post('abandoned_cart.delete', $formatted_cart);
+	// Send cart deletion notification with new endpoint
+	$response = $api->post('/cart/deleted', $cart_data);
 
 	if (!isset($response['error'])) {
 		error_log('Successfully sent cart deletion notification for cart: ' . $cart_id);
@@ -1192,24 +1100,33 @@ function wtrackt_cart_emptied()
 		return;
 	}
 
-	$new_cart = WC()->session->get('wtrackt_new_cart');
-	if (!is_null($new_cart)) {
-		// Send deletion notification before removing the cart
-		wtrackt_send_cart_deletion_notification($new_cart);
+	$session_id = wtrackt_get_session_id();
+	$customer_id = is_user_logged_in() ? get_current_user_id() : 0;
 
-		// Mark cart as deleted
-		$table_name = $wpdb->prefix . 'mottasl_cart';
-		$wpdb->update(
-			$table_name,
-			array('cart_status' => 'deleted'),
-			array('id' => $new_cart),
-			array('%s'),
-			array('%d')
-		);
+	if ($session_id) {
+		// Find current cart by session ID
+		$cart_id = wtrackt_find_cart_by_session($session_id, $customer_id);
 
-		// Clear session
-		WC()->session->__unset('wtrackt_new_cart');
+		if ($cart_id) {
+			// Send deletion notification before removing the cart
+			wtrackt_send_cart_deletion_notification($cart_id);
+
+			// Mark cart as deleted
+			$table_name = $wpdb->prefix . 'mottasl_cart';
+			$wpdb->update(
+				$table_name,
+				array('cart_status' => 'deleted', 'update_time' => current_time('mysql')),
+				array('id' => $cart_id),
+				array('%s', '%s'),
+				array('%d')
+			);
+
+			error_log('Cart marked as deleted due to cart emptied: ' . $cart_id);
+		}
 	}
+
+	// Clear session
+	WC()->session->__unset('wtrackt_new_cart');
 }
 
 function wtrackt_user_login_update($user_login, $user)
@@ -1217,21 +1134,112 @@ function wtrackt_user_login_update($user_login, $user)
 	if (!isset(WC()->session)) {
 		return;
 	}
-	$new_cart = WC()->session->get('wtrackt_new_cart');
 
-	if (!is_null($new_cart)) {
+	global $wpdb;
+	$table_name = $wpdb->prefix . 'mottasl_cart';
+	$session_id = wtrackt_get_session_id();
+
+	if ($session_id) {
+		// Find current cart by session ID
+		$cart_id = wtrackt_find_cart_by_session($session_id, 0); // Don't pass customer_id to avoid recursion
+
+		if ($cart_id) {
+			// Update the cart with logged-in user ID
+			$wpdb->update(
+				$table_name,
+				array(
+					'customer_id' => $user->ID,
+					'update_time' => current_time('mysql')
+				),
+				array('id' => $cart_id),
+				array('%d', '%s'),
+				array('%d')
+			);
+
+			// Store cart ID in session
+			WC()->session->set('wtrackt_new_cart', $cart_id);
+			error_log('Updated cart customer_id after login: ' . $cart_id . ' for user: ' . $user->ID);
+		}
+	}
+}
+
+// Helper function to get WooCommerce session ID for cart tracking
+if (!function_exists('wtrackt_get_session_id')) {
+	function wtrackt_get_session_id()
+	{
+		if (!isset(WC()->session)) {
+			return null;
+		}
+
+		// Get WooCommerce session customer ID (this is unique per session)
+		$session_key = WC()->session->get_customer_id();
+
+		if (empty($session_key)) {
+			// If no session key exists, generate one
+			WC()->session->set_customer_session_cookie(true);
+			$session_key = WC()->session->get_customer_id();
+		}
+
+		return $session_key;
+	}
+}
+
+// Helper function to find existing cart by session ID
+if (!function_exists('wtrackt_find_cart_by_session')) {
+	function wtrackt_find_cart_by_session($session_id, $customer_id = 0)
+	{
 		global $wpdb;
-		$table_name = $wpdb->prefix . 'mottasl_cart';
-		$wpdb->update(
-			$table_name,
-			array(
-				'customer_id' => $user->ID,
+		$table_cart_name = $wpdb->prefix . 'mottasl_cart';
+
+		if (empty($session_id)) {
+			return null;
+		}
+
+		// First try to find by session_id
+		$existing_cart = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT id FROM $table_cart_name
+				 WHERE session_id = %s
+				 AND cart_status IN ('new', 'abandoned')
+				 ORDER BY update_time DESC LIMIT 1",
+				$session_id
 			),
-			array(
-				'id' => $new_cart,
-			),
-			array('%d')
+			ARRAY_A
 		);
+
+		if ($existing_cart) {
+			return intval($existing_cart['id']);
+		}
+
+		// If no session cart found and user is logged in, check for recent cart by customer_id
+		if ($customer_id > 0) {
+			$recent_cart = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT id FROM $table_cart_name
+					 WHERE customer_id = %d
+					 AND cart_status IN ('new', 'abandoned')
+					 AND update_time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+					 ORDER BY update_time DESC LIMIT 1",
+					$customer_id
+				),
+				ARRAY_A
+			);
+
+			if ($recent_cart) {
+				// Update the cart with current session_id
+				$wpdb->update(
+					$table_cart_name,
+					array('session_id' => $session_id),
+					array('id' => $recent_cart['id']),
+					array('%s'),
+					array('%d')
+				);
+				error_log('Updated existing customer cart with session ID: ' . $recent_cart['id']);
+				return intval($recent_cart['id']);
+			}
+		}
+
+		return null;
 	}
 }
 
@@ -1246,43 +1254,72 @@ if (!function_exists('wtrackt_get_or_create_cart')) {
 			return null;
 		}
 
+		$session_id = wtrackt_get_session_id();
+		if (empty($session_id)) {
+			error_log('Failed to get session ID for cart tracking');
+			return null;
+		}
+
+		// First check if we have a cart in session storage
 		$new_cart = WC()->session->get('wtrackt_new_cart');
 
-		// If no cart in session, create new one
-		if (is_null($new_cart)) {
-			return wtrackt_create_new_cart($customer_id, $cart_total);
+		// Validate cart exists in database and belongs to current session
+		if (!is_null($new_cart)) {
+			$existing_cart = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT id, session_id FROM $table_cart_name
+					 WHERE id = %d AND session_id = %s",
+					$new_cart,
+					$session_id
+				),
+				ARRAY_A
+			);
+
+			if ($existing_cart) {
+				return $new_cart; // Cart is valid
+			} else {
+				// Cart in session doesn't match database, clear it
+				WC()->session->__unset('wtrackt_new_cart');
+				error_log('Cart session mismatch detected, clearing session cart: ' . $new_cart);
+			}
 		}
 
-		// Verify cart exists in database
-		$existing_cart = $wpdb->get_row(
-			$wpdb->prepare("SELECT id FROM $table_cart_name WHERE id = %d", $new_cart),
-			ARRAY_A
-		);
-
-		if (!$existing_cart) {
-			// Cart session exists but database record is missing - clear session and create new cart
-			WC()->session->__unset('wtrackt_new_cart');
-			error_log('Cart session mismatch detected, clearing session and creating new cart');
-			return wtrackt_create_new_cart($customer_id, $cart_total);
+		// Look for existing cart by session ID
+		$existing_cart_id = wtrackt_find_cart_by_session($session_id, $customer_id);
+		if ($existing_cart_id) {
+			WC()->session->set('wtrackt_new_cart', $existing_cart_id);
+			error_log('Found existing cart by session: ' . $existing_cart_id);
+			return $existing_cart_id;
 		}
 
-		return $new_cart;
+		// No existing cart found, create new one
+		return wtrackt_create_new_cart($customer_id, $cart_total, $session_id);
 	}
 }
 
 // Helper function to create a new cart record
 if (!function_exists('wtrackt_create_new_cart')) {
-	function wtrackt_create_new_cart($customer_id = 0, $cart_total = 0.0)
+	function wtrackt_create_new_cart($customer_id = 0, $cart_total = 0.0, $session_id = null)
 	{
 		global $wpdb;
 		$table_cart_name = $wpdb->prefix . 'mottasl_cart';
 		$table_name = $wpdb->prefix . 'mottasl_cart_tracking';
+
+		if (empty($session_id)) {
+			$session_id = wtrackt_get_session_id();
+		}
+
+		if (empty($session_id)) {
+			error_log('Cannot create cart without session ID');
+			return null;
+		}
 
 		$carts_insert = array(
 			'update_time' => current_time('mysql'),
 			'creation_time' => current_time('mysql'),
 			'cart_total' => $cart_total,
 			'customer_id' => $customer_id,
+			'session_id' => $session_id,
 			'cart_status' => 'new',
 			'notification_sent' => 0,
 			'try_count' => 0,
@@ -1318,7 +1355,7 @@ if (!function_exists('wtrackt_create_new_cart')) {
 			}
 
 			WC()->session->set('wtrackt_new_cart', $last_cart_number);
-			error_log('New cart created: ' . $last_cart_number);
+			error_log('New cart created with session ID (' . $session_id . '): ' . $last_cart_number);
 		}
 
 		return $last_cart_number;

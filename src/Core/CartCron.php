@@ -194,14 +194,17 @@ function my_function()
 	$failed_cart_ids = [];
 	foreach ($formatted_carts as $formatted_cart) {
 		// Determine the appropriate event name and endpoint based on cart status
-		$event_name = 'cart.abandoned';
-		$endpoint = '/cart/abandoned';
-		$log_message = 'cart creation';
-
+		// NEW CARTS -> cart/abandoned endpoint
+		// ABANDONED CARTS -> cart/updated endpoint
 		if ($formatted_cart['cart_status'] === 'abandoned') {
-			$event_name = 'cart.updated'; // Same event for abandoned carts
+			$event_name = 'cart.updated';
 			$endpoint = '/cart/updated';
-			$log_message = 'abandoned cart creation';
+			$log_message = 'abandoned cart notification';
+		} else {
+			// For 'new' carts
+			$event_name = 'cart.abandoned';
+			$endpoint = '/cart/abandoned';
+			$log_message = 'new cart notification';
 		}
 
 		// Prepare data with new event structure
@@ -367,14 +370,21 @@ function wtrackt_process_cart_updates()
 		$cart_token = 'wc_cart_token_' . md5($cart['id'] . $cart['creation_time']);
 
 		// Determine event name and endpoint based on cart status
-		$event_name = 'cart.updated';
-		$endpoint = '/cart/updated';
-		$log_message = 'cart update';
-
-		if ($cart['cart_status'] === 'deleted') {
+		// ABANDONED CARTS -> cart/updated endpoint
+		// DELETED CARTS -> cart/deleted endpoint
+		if ($cart['cart_status'] === 'abandoned') {
+			$event_name = 'cart.updated';
+			$endpoint = '/cart/updated';
+			$log_message = 'abandoned cart update';
+		} elseif ($cart['cart_status'] === 'deleted') {
 			$event_name = 'cart.deleted';
-			$endpoint = '/cart/updated'; // Use same endpoint but different event name
+			$endpoint = '/cart/deleted';
 			$log_message = 'cart deletion';
+		} else {
+			// Default fallback
+			$event_name = 'cart.updated';
+			$endpoint = '/cart/updated';
+			$log_message = 'cart update';
 		}
 
 		// Format cart data with new event structure

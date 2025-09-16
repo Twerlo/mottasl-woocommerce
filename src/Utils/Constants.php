@@ -57,8 +57,8 @@ class Constants
 	 * @var string
 	 */
 	//const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
-	// const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
-	const MOTTASL_API_BASE_URL = 'https://8a25e348dbb6.ngrok-free.app';
+	const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
+	// const MOTTASL_API_BASE_URL = 'https://fe1e066731c1.ngrok-free.app';
 
 	/**
 	 * Mottasl application base URL for redirects

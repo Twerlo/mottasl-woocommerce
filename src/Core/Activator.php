@@ -103,10 +103,12 @@ class Activator
 			notification_sent boolean DEFAULT false,
 			try_count int DEFAULT 0,
 			customer_id bigint(20) DEFAULT 0,
+			session_id varchar(255) DEFAULT NULL,
 			ip_address varchar(20) DEFAULT NULL,
 			customer_data TEXT DEFAULT NULL,
 			products TEXT DEFAULT NULL,
-			PRIMARY KEY (id)
+			PRIMARY KEY (id),
+			INDEX idx_session_id (session_id)
 		) $charset_collate;";
 		dbDelta($sql_cart);
 
@@ -122,6 +124,21 @@ class Activator
 		if (empty($column_exists)) {
 			$wpdb->query("ALTER TABLE $table_name ADD COLUMN try_count int DEFAULT 0 AFTER notification_sent");
 			error_log('Mottasl: Added try_count column to ' . $table_name);
+		}
+
+		// Add session_id column if it doesn't exist (migration for existing installations)
+		$session_column_exists = $wpdb->get_results($wpdb->prepare("
+			SELECT COLUMN_NAME
+			FROM INFORMATION_SCHEMA.COLUMNS
+			WHERE TABLE_SCHEMA = %s
+			AND TABLE_NAME = %s
+			AND COLUMN_NAME = 'session_id'
+		", DB_NAME, $table_name));
+
+		if (empty($session_column_exists)) {
+			$wpdb->query("ALTER TABLE $table_name ADD COLUMN session_id varchar(255) DEFAULT NULL AFTER customer_id");
+			$wpdb->query("ALTER TABLE $table_name ADD INDEX idx_session_id (session_id)");
+			error_log('Mottasl: Added session_id column and index to ' . $table_name);
 		}
 
 		// Create mottasl_cart_logs table
