@@ -72,13 +72,13 @@ class Deactivator
 
 
 		$store_data = array(
-			'event_name' => 'uninstall',
+			'event_name' => 'uninstalled',
 		);
 
 		// Initialize the MottaslApi
 		$api = new MottaslApi();
 
-		// Send the uninstall event
+		// Send the uninstalled event
 		$response = $api->post('app.event', $store_data);
 
 		// Check for errors

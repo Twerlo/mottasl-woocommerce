@@ -27,9 +27,11 @@ add_action(
 );
 //add_action('woocommerce_before_cart_item_quantity_zero', 'wtrackt_item_quantity_zero');
 add_action('woocommerce_cart_updated', 'wtrackt_cart_updated');
-add_action('woocommerce_store_api_checkout_order_processed', 'wtrackt_new_order');
+// Run order creation hook early (priority 5) to ensure it fires before status change hooks
+add_action('woocommerce_store_api_checkout_order_processed', 'wtrackt_new_order', 5);
 // Add hooks for order updates and customer events
-add_action('woocommerce_order_status_changed', 'wtrackt_order_status_changed', 10, 4);
+// Run order status change hook late (priority 999) to ensure order.created transient is set first
+add_action('woocommerce_order_status_changed', 'wtrackt_order_status_changed', 999, 4);
 add_action('user_register', 'wtrackt_customer_created', 10, 1);
 add_action('profile_update', 'wtrackt_customer_updated', 10, 1);
 //add_action( 'woocommerce_cart_item_restored', '');
@@ -523,7 +525,13 @@ function wtrackt_new_order($order_id)
 	$table_name = $wpdb->prefix . 'mottasl_cart';
 
 	if (!is_null($new_cart)) {
-		$order = wc_get_order($order_id);
+		// Handle if $order_id is actually an order object (from woocommerce_store_api_checkout_order_processed hook)
+		if (is_object($order_id) && method_exists($order_id, 'get_id')) {
+			$order = $order_id;
+			$order_id = $order->get_id();
+		} else {
+			$order = wc_get_order($order_id);
+		}
 
 		// Get cart details before updating
 		$cart_details = $wpdb->get_row(
@@ -572,7 +580,7 @@ function wtrackt_new_order($order_id)
 		// Prepare order data
 		$order_data = array(
 			'order_id' => $order_id,
-			'cart_id' => $new_cart,
+			'cart_id' => 'wc_cart_' . $new_cart,
 			'status' => $order->get_status(),
 			'total' => $order->get_total(),
 			'subtotal' => $order->get_subtotal(),
@@ -605,20 +613,24 @@ function wtrackt_new_order($order_id)
 				'city' => $order->get_shipping_city(),
 				'state' => $order->get_shipping_state(),
 				'postcode' => $order->get_shipping_postcode(),
-				'country' => $order->get_shipping_country()
+				'country' => $order->get_shipping_country(),
+				'email' => $order->get_billing_email(),
+				'phone' => $order->get_billing_phone()
 			),
 			'line_items' => $order_items,
 			'date_created' => $order->get_date_created()->date('Y-m-d H:i:s'),
 			'date_modified' => $order->get_date_modified()->date('Y-m-d H:i:s')
 		);
 
+		// Set multiple flags BEFORE sending to prevent duplicate order.updated event during order creation
+		set_transient('mottasl_order_created_' . $order_id, true, 60); // Expires in 60 seconds
+		update_post_meta($order_id, '_mottasl_order_created_sent', true); // Permanent flag in order meta
+
 		// Send order created event to Mottasl API
 		$response = $api->post('order.created', $order_data);
 
 		if ($response) {
 			error_log('Order creation event sent to Mottasl API for order: ' . $order_id . ' and cart: ' . $new_cart);
-			// Set a transient flag to prevent duplicate order.updated event during order creation
-			set_transient('mottasl_order_created_' . $order_id, true, 60); // Expires in 60 seconds
 		} else {
 			error_log('Failed to send order creation event to Mottasl API for order: ' . $order_id);
 		}
@@ -1372,9 +1384,27 @@ function wtrackt_order_status_changed($order_id, $old_status, $new_status, $orde
 		return;
 	}
 
-	// Skip if we recently sent an order.created event for this order
+	// Skip if we recently sent an order.created event for this order (check transient)
 	if (get_transient('mottasl_order_created_' . $order_id)) {
-		error_log('Skipping order.updated event for order ' . $order_id . ' - order.created event was recently sent');
+		error_log('Skipping order.updated event for order ' . $order_id . ' - order.created event was recently sent (transient flag)');
+		return;
+	}
+
+	// Skip if the order was just created (within last 30 seconds) - prevents race conditions
+	$date_created = $order->get_date_created();
+	if ($date_created) {
+		$seconds_since_creation = time() - $date_created->getTimestamp();
+		if ($seconds_since_creation < 30) {
+			error_log('Skipping order.updated event for order ' . $order_id . ' - order was just created ' . $seconds_since_creation . ' seconds ago');
+			return;
+		}
+	}
+
+	// Additional check: Skip if order.created was never sent (checking permanent meta flag)
+	// This ensures we only send order.updated for orders that were properly created through our system
+	$order_created_sent = get_post_meta($order_id, '_mottasl_order_created_sent', true);
+	if (!$order_created_sent) {
+		error_log('Skipping order.updated event for order ' . $order_id . ' - order.created was never sent for this order');
 		return;
 	}
 
@@ -1406,7 +1436,7 @@ function wtrackt_order_status_changed($order_id, $old_status, $new_status, $orde
 	// Prepare complete order data - same structure as order.created
 	$order_data = array(
 		'order_id' => $order_id,
-		'cart_id' => $cart_id,
+		'cart_id' => $cart_id ? 'wc_cart_' . $cart_id : null,
 		'status' => $order->get_status(),
 		'old_status' => $old_status,
 		'new_status' => $new_status,
@@ -1498,6 +1528,14 @@ function wtrackt_customer_created($user_id)
 // Function to handle customer updates
 function wtrackt_customer_updated($user_id)
 {
+	// Check if we're currently processing an order checkout
+	// This prevents customer.updated from firing during order creation
+	$last_update_time = get_user_meta($user_id, '_mottasl_last_customer_update_sent', true);
+	if ($last_update_time && (time() - $last_update_time) < 30) {
+		error_log('Skipping customer.updated event for customer ' . $user_id . ' - too soon since last update (throttling)');
+		return;
+	}
+
 	$api = new MottaslApi();
 	$user = get_userdata($user_id);
 
@@ -1528,6 +1566,8 @@ function wtrackt_customer_updated($user_id)
 	$response = $api->post('customer.updated', $customer_data);
 
 	if ($response) {
+		// Update the timestamp to prevent duplicate updates within throttle period
+		update_user_meta($user_id, '_mottasl_last_customer_update_sent', time());
 		error_log('Customer update event sent to Mottasl API for customer: ' . $user_id);
 	} else {
 		error_log('Failed to send customer update event to Mottasl API for customer: ' . $user_id);
