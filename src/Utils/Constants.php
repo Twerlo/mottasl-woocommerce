@@ -56,8 +56,8 @@ class Constants
 	 *
 	 * @var string
 	 */
-	//const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
-	const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
+	const MOTTASL_API_BASE_URL = 'https://hub.api.mottasl.ai';
+	// const MOTTASL_API_BASE_URL = 'https://test.hub.avocad0.dev';
 	// const MOTTASL_API_BASE_URL = 'https://0521a36fcb77.ngrok-free.app';
 
 	/**
@@ -65,8 +65,8 @@ class Constants
 	 *
 	 * @var string
 	 */
-	// const MOTTASL_APP_BASE_URL = 'https://app.mottasl.ai';
-	const MOTTASL_APP_BASE_URL = 'https://test.app.avocad0.dev';
+	const MOTTASL_APP_BASE_URL = 'https://app.mottasl.ai';
+	// const MOTTASL_APP_BASE_URL = 'https://test.app.avocad0.dev';
 	// const MOTTASL_APP_BASE_URL = 'http://localhost:3001';
 
 	/**
